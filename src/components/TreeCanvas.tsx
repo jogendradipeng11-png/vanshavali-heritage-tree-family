@@ -1,9 +1,9 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Minus, RotateCcw, Crosshair, Printer } from 'lucide-react';
+import { Plus, Minus, RotateCcw, Crosshair, Printer, Sparkles, Layers, Maximize2 } from 'lucide-react';
 import { MemberNode, RelationshipLink, Branch } from '../types';
 import { MemberCard } from './MemberCard';
 import { CARD_WIDTH, CARD_HEIGHT } from '../initialData';
-import { getAllDescendantIds } from '../utils/treeUtils';
+import { getAllDescendantIds, getGenerationTiers } from '../utils/treeUtils';
 
 interface TreeCanvasProps {
   nodes: MemberNode[];
@@ -21,6 +21,9 @@ interface TreeCanvasProps {
   onUpdateNodePosition: (nodeId: string, x: number, y: number) => void;
   onDragFinish?: () => void;
   onPrintArchitecture?: () => void;
+  onAutoArrange?: () => void;
+  isAutoAligned?: boolean;
+  autoFitTrigger?: number;
 }
 
 export const TreeCanvas: React.FC<TreeCanvasProps> = ({
@@ -38,12 +41,16 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
   onToggleCollapse,
   onUpdateNodePosition,
   onDragFinish,
-  onPrintArchitecture
+  onPrintArchitecture,
+  onAutoArrange,
+  isAutoAligned,
+  autoFitTrigger
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 80, y: 100 });
   const [zoom, setZoom] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
+  const [showGenerationLines, setShowGenerationLines] = useState(true);
   const panStartRef = useRef({ x: 0, y: 0 });
 
   // Node Dragging State
@@ -262,29 +269,76 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
     setZoom(1);
   };
 
-  const fitToScreen = () => {
-    if (nodes.length === 0 || !containerRef.current) return;
-    const minX = Math.min(...nodes.map(n => n.x));
-    const maxX = Math.max(...nodes.map(n => n.x + CARD_WIDTH));
-    const minY = Math.min(...nodes.map(n => n.y));
-    const maxY = Math.max(...nodes.map(n => n.y + CARD_HEIGHT));
+  // Filter visible nodes & links
+  const visibleNodes = useMemo(() => {
+    return nodes.filter(n => isVisibleInBranch(n) && !isHiddenByCollapse(n.id));
+  }, [nodes, isVisibleInBranch, isHiddenByCollapse]);
 
-    const treeW = maxX - minX + 160;
-    const treeH = maxY - minY + 160;
+  const visibleNodeMap = useMemo(() => {
+    return new Map(visibleNodes.map(n => [n.id, n]));
+  }, [visibleNodes]);
+
+  // Compute generation tiers with labels, line coordinates, and colors
+  const generationTiers = useMemo(() => {
+    return getGenerationTiers(visibleNodes, links);
+  }, [visibleNodes, links]);
+
+  // Auto-fit & auto-resize canvas to seamlessly display all generations on screen
+  const fitToScreen = useCallback((padding = 70) => {
+    if (visibleNodes.length === 0 || !containerRef.current) return;
+    const minX = Math.min(...visibleNodes.map(n => n.x));
+    const maxX = Math.max(...visibleNodes.map(n => n.x + CARD_WIDTH));
+    const minY = Math.min(...visibleNodes.map(n => n.y));
+    const maxY = Math.max(...visibleNodes.map(n => n.y + CARD_HEIGHT));
+
+    // Account for generation labels placed above the cards
+    const effectiveMinY = Math.max(0, minY - 44);
+    const effectiveMinX = Math.max(0, minX - 44);
+
+    const treeW = (maxX - effectiveMinX) + padding * 2;
+    const treeH = (maxY - effectiveMinY) + padding * 2;
     const containerW = containerRef.current.clientWidth;
     const containerH = containerRef.current.clientHeight;
 
-    const scale = Math.min(1.2, Math.max(0.35, Math.min(containerW / treeW, containerH / treeH)));
+    if (containerW <= 0 || containerH <= 0) return;
+
+    const scale = Math.min(1.15, Math.max(0.28, Math.min(containerW / treeW, containerH / treeH)));
+    const centerX = (effectiveMinX + maxX) / 2;
+    const centerY = (effectiveMinY + maxY) / 2;
+
     setZoom(scale);
     setPan({
-      x: containerW / 2 - (minX + (maxX - minX) / 2) * scale,
-      y: containerH / 2 - (minY + (maxY - minY) / 2) * scale
+      x: Math.round(containerW / 2 - centerX * scale),
+      y: Math.round(containerH / 2 - centerY * scale)
     });
-  };
+  }, [visibleNodes]);
 
-  // Filter visible nodes & links
-  const visibleNodes = nodes.filter(n => isVisibleInBranch(n) && !isHiddenByCollapse(n.id));
-  const visibleNodeMap = new Map(visibleNodes.map(n => [n.id, n]));
+  // Auto-fit on initial canvas mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fitToScreen(70);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Auto-fit when autoFitTrigger changes (e.g. after Auto Arrange)
+  useEffect(() => {
+    if (autoFitTrigger) {
+      const timer = setTimeout(() => {
+        fitToScreen(70);
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+  }, [autoFitTrigger, fitToScreen]);
+
+  const handleCanvasAutoArrange = () => {
+    if (onAutoArrange) {
+      onAutoArrange();
+      setTimeout(() => {
+        fitToScreen(70);
+      }, 100);
+    }
+  };
 
   return (
     <div
@@ -293,6 +347,63 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
       onTouchStart={handleTouchStart}
       className="flex-1 relative overflow-hidden canvas-bg w-full h-full cursor-grab active:cursor-grabbing select-none"
     >
+      {/* Top Floating Quick Action Bar: Auto Arrange, Auto Resize, and Generation Lines */}
+      <div className="absolute top-4 left-4 right-4 sm:right-auto flex flex-wrap items-center gap-2 z-20 pointer-events-auto">
+        {onAutoArrange && (
+          <button
+            onClick={handleCanvasAutoArrange}
+            title="Automatically arrange family members by generation with zero overlap, and auto-resize view to fit"
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs shadow-xl shadow-amber-500/20 border border-amber-300/60 flex items-center gap-1.5 transition active:scale-95"
+          >
+            <Sparkles className="w-3.5 h-3.5 fill-slate-950" />
+            <span>Auto Arrange & Fit</span>
+          </button>
+        )}
+
+        <button
+          onClick={() => fitToScreen(70)}
+          title="Auto-resize canvas zoom & center all generations to fit comfortably in view"
+          className="px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-xs shadow-xl border border-slate-700/80 backdrop-blur-md flex items-center gap-1.5 transition active:scale-95"
+        >
+          <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Auto Resize View</span>
+        </button>
+
+        <button
+          onClick={() => setShowGenerationLines(!showGenerationLines)}
+          title="Toggle generation divider guidelines and titles"
+          className={`px-3 py-1.5 rounded-xl font-bold text-xs shadow-xl border backdrop-blur-md flex items-center gap-1.5 transition active:scale-95 ${
+            showGenerationLines
+              ? 'bg-indigo-950/80 text-indigo-300 border-indigo-500/50 hover:bg-indigo-900/80'
+              : 'bg-slate-900/90 text-slate-400 border-slate-700/80 hover:text-slate-200'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5 text-indigo-400" />
+          <span>{showGenerationLines ? 'Generation Lines: On' : 'Generation Lines: Off'}</span>
+        </button>
+
+        {/* Dedicated Color Code Legend for Main Line vs Wife's Family Section */}
+        <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-slate-950/85 border border-slate-800 text-[11px] font-semibold backdrop-blur-md shadow-lg">
+          <div className="flex items-center gap-1.5 text-indigo-300">
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 ring-2 ring-indigo-400/30" />
+            <span className="font-bold">👑 Main Line</span>
+          </div>
+          <span className="text-slate-600">|</span>
+          <div className="flex items-center gap-1.5 text-rose-300">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-400/30 animate-pulse" />
+            <span className="font-bold">🌸 Wife's Family</span>
+          </div>
+        </div>
+
+        {generationTiers.length > 0 && (
+          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 font-semibold backdrop-blur-md">
+            <span>🌿 {visibleNodes.length} Members</span>
+            <span>•</span>
+            <span className="text-amber-400 font-bold">{generationTiers.length} Generations</span>
+          </div>
+        )}
+      </div>
+
       <svg className="w-full h-full absolute inset-0 pointer-events-none">
         <defs>
           <marker
@@ -309,6 +420,120 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
         </defs>
 
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+          {/* Generation Demarcation Lines with Dedicated Wife's Family Sections & Color Codes */}
+          {showGenerationLines && generationTiers.map(tier => {
+            return (
+              <g key={`gen-tier-${tier.level}`} className="generation-guide pointer-events-none select-none">
+                {/* Subtle Generation Baseline spanning across the tier */}
+                <line
+                  x1={tier.minX - 15}
+                  y1={tier.lineY}
+                  x2={tier.maxX + 15}
+                  y2={tier.lineY}
+                  stroke="#475569"
+                  strokeWidth="1.5"
+                  strokeDasharray="4,6"
+                  strokeOpacity="0.25"
+                />
+
+                {/* Render each Family Section Segment (Main Line vs Wife's Family Section) */}
+                {tier.segments.map(seg => {
+                  const segCards = seg.nodeIds.map(id => visibleNodeMap.get(id)).filter(Boolean) as MemberNode[];
+                  const maxCardY = segCards.length > 0
+                    ? Math.max(...segCards.map(c => c.y + CARD_HEIGHT))
+                    : seg.lineY + CARD_HEIGHT + 40;
+                  const laneHeight = Math.max(CARD_HEIGHT + 50, (maxCardY - seg.lineY) + 20);
+                  const isWifeFamily = seg.branch === 'maternal';
+
+                  return (
+                    <g key={seg.id} className="branch-generation-segment">
+                      {/* Soft Generation Lane Background Tint */}
+                      <rect
+                        x={seg.minX - 10}
+                        y={seg.lineY - 4}
+                        width={(seg.maxX - seg.minX) + 20}
+                        height={laneHeight}
+                        rx="16"
+                        fill={seg.accentColor}
+                        fillOpacity={isWifeFamily ? 0.038 : 0.024}
+                        stroke={seg.accentColor}
+                        strokeWidth={isWifeFamily ? 1.5 : 1}
+                        strokeOpacity={isWifeFamily ? 0.22 : 0.12}
+                        strokeDasharray={isWifeFamily ? '6,4' : '8,6'}
+                      />
+
+                      {/* Section Demarcation Guideline (All cards sit BELOW this line) */}
+                      <line
+                        x1={seg.minX}
+                        y1={seg.lineY}
+                        x2={seg.maxX}
+                        y2={seg.lineY}
+                        stroke={seg.accentColor}
+                        strokeWidth={isWifeFamily ? 2.5 : 2}
+                        strokeDasharray={isWifeFamily ? '6,4' : '8,5'}
+                        strokeOpacity={isWifeFamily ? 0.85 : 0.75}
+                      />
+
+                      {/* Glowing End Nodes on the Guideline */}
+                      <circle cx={seg.minX} cy={seg.lineY} r={isWifeFamily ? 4.5 : 4} fill={seg.accentColor} fillOpacity="0.95" />
+                      <circle cx={seg.maxX} cy={seg.lineY} r={isWifeFamily ? 4.5 : 4} fill={seg.accentColor} fillOpacity="0.95" />
+
+                      {/* Generation Header Ribbon / Badge */}
+                      <foreignObject
+                        x={seg.minX}
+                        y={seg.lineY - 28}
+                        width={Math.max(480, (seg.maxX - seg.minX) + 120)}
+                        height={36}
+                        className="overflow-visible pointer-events-none"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black shadow-xl backdrop-blur-md border transition ${
+                              isWifeFamily
+                                ? 'ring-2 ring-rose-500/30'
+                                : 'ring-2 ring-indigo-500/20'
+                            }`}
+                            style={{
+                              backgroundColor: seg.badgeBg,
+                              borderColor: seg.badgeBorder,
+                              color: seg.badgeText
+                            }}
+                          >
+                            <span className="text-sm">{seg.branchIcon}</span>
+                            <span
+                              className={`tracking-wider uppercase font-black text-[10px] px-1.5 py-0.5 rounded ${
+                                isWifeFamily
+                                  ? 'bg-rose-500/30 text-rose-200 border border-rose-400/40'
+                                  : 'bg-indigo-500/30 text-indigo-200 border border-indigo-400/40'
+                              }`}
+                            >
+                              {seg.branchLabel}
+                            </span>
+                            <span className="font-extrabold text-[11px] text-white">
+                              {seg.title}
+                            </span>
+                            <span className="opacity-90 font-medium text-[11px]">
+                              • {seg.subtitle}
+                            </span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono tracking-tight font-bold ${
+                                isWifeFamily
+                                  ? 'bg-rose-950/90 text-rose-200 border border-rose-500/40'
+                                  : 'bg-slate-900/90 text-slate-200 border border-slate-700/50'
+                              }`}
+                            >
+                              {seg.count} {seg.count === 1 ? 'member' : 'members'}
+                            </span>
+                          </div>
+                        </div>
+                      </foreignObject>
+                    </g>
+                  );
+                })}
+              </g>
+            );
+          })}
+
           {/* Relationship Links */}
           {links.map(link => {
             const sourceNode = visibleNodeMap.get(link.source);
@@ -442,7 +667,7 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
           <RotateCcw className="w-4 h-4" />
         </button>
         <button
-          onClick={fitToScreen}
+          onClick={() => fitToScreen()}
           title="Fit All on Screen"
           className="w-10 h-10 rounded-xl hover:bg-slate-800 text-white font-bold text-sm flex items-center justify-center transition active:scale-95"
         >

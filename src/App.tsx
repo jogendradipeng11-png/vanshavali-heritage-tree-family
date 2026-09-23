@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MemberNode, RelationshipLink, Branch, ActiveUser, RelationshipType } from './types';
 import { defaultTreeData, CARD_WIDTH, CARD_HEIGHT } from './initialData';
 import { Plus, Printer, RotateCcw } from 'lucide-react';
-import { autoArrangeTree, getAllDescendantIds, getOwnBranchCluster } from './utils/treeUtils';
+import { autoArrangeTree, getAllDescendantIds, getOwnBranchCluster, resolveAllOverlaps } from './utils/treeUtils';
 import { 
   exportFullRegisterPDF, 
   exportSinglePersonPDF, 
@@ -49,6 +49,7 @@ export default function App() {
   // 1-Click Auto Align and 2nd-Click Revert State
   const [previousLayout, setPreviousLayout] = useState<MemberNode[] | null>(null);
   const [isAutoAligned, setIsAutoAligned] = useState<boolean>(false);
+  const [autoFitKey, setAutoFitKey] = useState<number>(0);
 
   // Real-time Cloud Synchronization States
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -94,12 +95,14 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed.nodes) && parsed.nodes.length > 0) {
-          loadedNodes = parsed.nodes;
+          loadedNodes = resolveAllOverlaps(parsed.nodes, parsed.links || []);
           loadedLinks = parsed.links || [];
         }
       } catch {
         // fallback
       }
+    } else {
+      loadedNodes = resolveAllOverlaps(defaultTreeData.nodes, defaultTreeData.links);
     }
 
     const savedUser = localStorage.getItem(USER_KEY);
@@ -141,11 +144,12 @@ export default function App() {
     // 2. Fetch directly from Firebase Realtime Database immediately for live master state
     fetchFirebaseMasterTree().then((rtdbData) => {
       if (rtdbData && Array.isArray(rtdbData.nodes) && rtdbData.nodes.length > 0) {
-        setNodes(rtdbData.nodes);
+        const cleanNodes = resolveAllOverlaps(rtdbData.nodes, rtdbData.links || []);
+        setNodes(cleanNodes);
         setLinks(rtdbData.links || []);
         setHasPermissionError(false);
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(rtdbData));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: cleanNodes, links: rtdbData.links || [] }));
         } catch {}
         if (rtdbData.lastUpdated) {
           setLastSyncTime(new Date(rtdbData.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -154,7 +158,8 @@ export default function App() {
         // Fallback to local server endpoint if needed
         fetchServerMasterTree().then((serverData) => {
           if (serverData && Array.isArray(serverData.nodes) && serverData.nodes.length > 0) {
-            setNodes(serverData.nodes);
+            const cleanNodes = resolveAllOverlaps(serverData.nodes, serverData.links || []);
+            setNodes(cleanNodes);
             setLinks(serverData.links || []);
           }
         }).catch(() => {});
@@ -167,14 +172,15 @@ export default function App() {
         if (rtdbData && Array.isArray(rtdbData.nodes) && rtdbData.nodes.length > 0) {
           setNodes(prev => {
             if (rtdbData.nodes.length !== prev.length || JSON.stringify(rtdbData.nodes) !== JSON.stringify(prev)) {
+              const cleanNodes = resolveAllOverlaps(rtdbData.nodes, rtdbData.links || []);
               setLinks(rtdbData.links || []);
               try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(rtdbData));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: cleanNodes, links: rtdbData.links || [] }));
               } catch {}
               if (rtdbData.lastUpdated) {
                 setLastSyncTime(new Date(rtdbData.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
               }
-              return rtdbData.nodes;
+              return cleanNodes;
             }
             return prev;
           });
@@ -187,10 +193,11 @@ export default function App() {
       (cloudData, lastUpdated) => {
         setHasPermissionError(false);
         if (cloudData && Array.isArray(cloudData.nodes) && cloudData.nodes.length > 0) {
-          setNodes(cloudData.nodes);
+          const cleanNodes = resolveAllOverlaps(cloudData.nodes, cloudData.links || []);
+          setNodes(cleanNodes);
           setLinks(cloudData.links || []);
           try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: cleanNodes, links: cloudData.links || [] }));
           } catch {}
 
           if (lastUpdated) {
@@ -253,13 +260,14 @@ export default function App() {
   // Save dragged positions to storage and cloud only when dragging finishes on the canvas
   const handleDragFinish = useCallback(() => {
     setNodes(currentNodes => {
+      const nonOverlapping = resolveAllOverlaps(currentNodes, links);
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: currentNodes, links }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: nonOverlapping, links }));
       } catch {
         // ignore
       }
-      pushMasterTreeToCloud(currentNodes, links).catch(() => {});
-      return currentNodes;
+      pushMasterTreeToCloud(nonOverlapping, links).catch(() => {});
+      return nonOverlapping;
     });
   }, [links]);
 
@@ -481,13 +489,15 @@ export default function App() {
       saveState(previousLayout, links);
       setPreviousLayout(null);
       setIsAutoAligned(false);
+      setAutoFitKey(k => k + 1);
       showToast('Restored your previous arrangement.', 'info');
     } else {
       setPreviousLayout([...nodes]);
       const arranged = autoArrangeTree(nodes, links);
       saveState(arranged, links);
       setIsAutoAligned(true);
-      showToast('Generations aligned automatically! Click "Undo Align" to revert anytime.', 'success');
+      setAutoFitKey(k => k + 1);
+      showToast('Generations aligned automatically below generation lines! Click "Undo Align" to revert anytime.', 'success');
     }
   }, [isAutoAligned, previousLayout, nodes, links, saveState, showToast]);
 
@@ -711,6 +721,9 @@ export default function App() {
               onUpdateNodePosition={handleUpdateNodePosition}
               onDragFinish={handleDragFinish}
               onPrintArchitecture={handlePrintArchitecture}
+              onAutoArrange={handleAutoArrange}
+              isAutoAligned={isAutoAligned}
+              autoFitTrigger={autoFitKey}
             />
 
             {/* Quick Contributor Floating Action for Shared Node Collaborator */}

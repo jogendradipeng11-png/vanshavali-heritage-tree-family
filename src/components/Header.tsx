@@ -218,8 +218,8 @@ export const Header: React.FC<HeaderProps> = ({
             className="bg-transparent text-indigo-300 font-bold focus:outline-none cursor-pointer"
           >
             <option value="all" className="bg-slate-800 text-white">🌐 All Lines</option>
-            <option value="paternal" className="bg-slate-800 text-white">🧔 Main Line</option>
-            <option value="maternal" className="bg-slate-800 text-white">👩 In-Law Line</option>
+            <option value="paternal" className="bg-slate-800 text-white">👑 Main Line</option>
+            <option value="maternal" className="bg-slate-800 text-white">🌸 Wife's Family</option>
           </select>
         </div>
 

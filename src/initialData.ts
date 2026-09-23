@@ -22,8 +22,8 @@ export const defaultTreeData: TreeData = {
       phone: "",
       address: "Barpali, Bargarh",
       notes: "Founding elder of the Barpali lineage.",
-      x: 320,
-      y: 40
+      x: 360,
+      y: 50
     },
     {
       id: "node_2",
@@ -42,8 +42,8 @@ export const defaultTreeData: TreeData = {
       phone: "",
       address: "Bargarh, Odisha",
       notes: "Prominent educator and village elder.",
-      x: 320,
-      y: 280
+      x: 360,
+      y: 290
     },
     {
       id: "node_3",
@@ -61,8 +61,8 @@ export const defaultTreeData: TreeData = {
       phone: "+91 94370 12345",
       address: "Sambalpur, Odisha",
       notes: "Active community leader.",
-      x: 320,
-      y: 520
+      x: 360,
+      y: 540
     },
     {
       id: "node_4",
@@ -80,8 +80,8 @@ export const defaultTreeData: TreeData = {
       phone: "+91 98610 54321",
       address: "Bhubaneswar, Odisha",
       notes: "Custodian of digital Vanshavali archive.",
-      x: 320,
-      y: 760
+      x: 360,
+      y: 800
     },
     {
       id: "node_5",
@@ -99,8 +99,8 @@ export const defaultTreeData: TreeData = {
       phone: "+91 98610 11111",
       address: "Bhubaneswar, Odisha",
       notes: "Eldest daughter of Cuttack Bharadwaj gotra lineage.",
-      x: 640,
-      y: 760
+      x: 660,
+      y: 800
     },
     {
       id: "node_6",
@@ -119,7 +119,7 @@ export const defaultTreeData: TreeData = {
       address: "Rourkela, Odisha",
       notes: "Brother-in-law to Root.",
       x: 960,
-      y: 760
+      y: 800
     },
     {
       id: "node_7",
@@ -138,7 +138,7 @@ export const defaultTreeData: TreeData = {
       address: "Cuttack, Odisha",
       notes: "Patriarch of Bharadwaj in-law branch.",
       x: 800,
-      y: 520
+      y: 540
     },
     {
       id: "node_8",
@@ -156,8 +156,8 @@ export const defaultTreeData: TreeData = {
       phone: "+91 98610 44444",
       address: "Jharsuguda, Odisha",
       notes: "Second spouse with distinct Gotra heritage.",
-      x: 0,
-      y: 760
+      x: 60,
+      y: 800
     },
     {
       id: "node_9",
@@ -175,8 +175,8 @@ export const defaultTreeData: TreeData = {
       phone: "",
       address: "Bhubaneswar, Odisha",
       notes: "Latest generation scion.",
-      x: 480,
-      y: 1000
+      x: 510,
+      y: 1060
     }
   ],
   links: [

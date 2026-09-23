@@ -38,9 +38,9 @@ export const MemberCard: React.FC<MemberCardProps> = ({
   if (isSharedOwner) {
     cardBorder = 'border-amber-400 bg-gradient-to-b from-amber-50 via-white to-white';
   } else if (isDeceased) {
-    cardBorder = 'border-slate-300 bg-slate-50/95';
+    cardBorder = isMaternal ? 'border-rose-300/80 bg-rose-50/25' : 'border-slate-300 bg-slate-50/95';
   } else if (isMaternal) {
-    cardBorder = 'border-amber-400 bg-gradient-to-b from-amber-50/50 via-white to-white';
+    cardBorder = 'border-rose-400/90 bg-gradient-to-b from-rose-50/45 via-white to-white shadow-xs';
   } else if (node.gender === 'female') {
     cardBorder = 'border-pink-400 bg-gradient-to-b from-pink-50/40 via-white to-white';
   }
@@ -83,12 +83,13 @@ export const MemberCard: React.FC<MemberCardProps> = ({
 
         <div className="flex items-center justify-between gap-1 mb-1.5">
           {/* Branch Badge */}
-          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1 ${
             isMaternal 
-              ? 'bg-amber-500 text-slate-950' 
-              : 'bg-indigo-600 text-white'
+              ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-xs' 
+              : 'bg-indigo-600 text-white shadow-xs'
           }`}>
-            {isMaternal ? "Wife's Side" : 'Main Line'}
+            <span>{isMaternal ? '🌸' : '👑'}</span>
+            <span>{isMaternal ? "Wife's Side" : 'Main Line'}</span>
           </span>
 
           <div className="flex items-center gap-1">
