@@ -119,7 +119,8 @@ function sanitizeForFirebase(obj: any): any {
 }
 
 /**
- * Directly updates tree data to Firebase and local server API so all devices worldwide get it immediately
+ * Directly updates tree data to Firebase Realtime Database via both direct REST API and SDK
+ * This ensures immediate direct write to https://vanshavali-heritage-tree-default-rtdb.firebaseio.com
  */
 export async function pushMasterTreeToCloud(
   nodes: MemberNode[],
@@ -134,7 +135,42 @@ export async function pushMasterTreeToCloud(
     lastUpdated: Date.now()
   };
 
-  // 1. Sync to local server API endpoint so all clients stay synchronized even if rules are locked
+  let writeSuccess = false;
+  let errorDetail = '';
+
+  // 1. Direct REST PUT to Firebase Realtime Database
+  // Immediately writes directly to https://vanshavali-heritage-tree-default-rtdb.firebaseio.com/trees/{room}.json
+  try {
+    const rtdbUrl = `${firebaseConfig.databaseURL.replace(/\/$/, '')}/trees/${room}.json`;
+    const res = await fetch(rtdbUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      writeSuccess = true;
+    } else {
+      const errText = await res.text();
+      errorDetail = `Firebase REST HTTP ${res.status}: ${errText}`;
+      console.warn('Direct Firebase REST write status:', res.status, errText);
+    }
+  } catch (err: any) {
+    errorDetail = err?.message || String(err);
+    console.warn('Direct Firebase REST write warning:', err);
+  }
+
+  // 2. Firebase JS SDK set() for live WebSocket propagation to all open client sessions
+  try {
+    const treeRef = ref(database, `trees/${room}`);
+    await set(treeRef, payload);
+    writeSuccess = true;
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    console.warn('Firebase SDK set notice:', msg);
+    if (!errorDetail) errorDetail = msg;
+  }
+
+  // 3. Keep local server persistence in sync as secondary backup
   try {
     fetch('/api/sync-tree', {
       method: 'POST',
@@ -143,17 +179,33 @@ export async function pushMasterTreeToCloud(
     }).catch(() => {});
   } catch {}
 
-  // 2. Sync to Firebase Realtime Database
-  try {
-    await ensureFirebaseAuth().catch(() => {});
-    const treeRef = ref(database, `trees/${room}`);
-    await set(treeRef, payload);
+  if (writeSuccess) {
     return { success: true };
-  } catch (err: any) {
-    const msg = err?.message || String(err);
-    console.warn('Firebase cloud push notice (local and server changes preserved):', msg);
-    return { success: false, error: msg };
   }
+  return { success: false, error: errorDetail };
+}
+
+/**
+ * Fetches current tree directly from Firebase Realtime Database
+ */
+export async function fetchFirebaseMasterTree(room: string = MASTER_TREE_ROOM): Promise<{ nodes: MemberNode[]; links: RelationshipLink[]; lastUpdated?: number } | null> {
+  try {
+    const rtdbUrl = `${firebaseConfig.databaseURL.replace(/\/$/, '')}/trees/${room}.json`;
+    const res = await fetch(rtdbUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.nodes) && data.nodes.length > 0) {
+        return {
+          nodes: data.nodes,
+          links: Array.isArray(data.links) ? data.links : [],
+          lastUpdated: data.lastUpdated
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Direct Firebase RTDB fetch error:', err);
+  }
+  return null;
 }
 
 /**

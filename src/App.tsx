@@ -13,6 +13,7 @@ import {
   subscribeToOnlineStatus, 
   subscribeToMasterTree, 
   pushMasterTreeToCloud,
+  fetchFirebaseMasterTree,
   fetchServerMasterTree 
 } from './services/firebase';
 
@@ -131,34 +132,43 @@ export default function App() {
       setIsOnline(online);
     });
 
-    // 2. Fetch from server sync API endpoint immediately for fastest multi-device load
-    fetchServerMasterTree().then((serverData) => {
-      if (serverData && Array.isArray(serverData.nodes) && serverData.nodes.length > 0) {
-        setNodes(serverData.nodes);
-        setLinks(serverData.links || []);
+    // 2. Fetch directly from Firebase Realtime Database immediately for live master state
+    fetchFirebaseMasterTree().then((rtdbData) => {
+      if (rtdbData && Array.isArray(rtdbData.nodes) && rtdbData.nodes.length > 0) {
+        setNodes(rtdbData.nodes);
+        setLinks(rtdbData.links || []);
+        setHasPermissionError(false);
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(serverData));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(rtdbData));
         } catch {}
-        if (serverData.lastUpdated) {
-          setLastSyncTime(new Date(serverData.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        if (rtdbData.lastUpdated) {
+          setLastSyncTime(new Date(rtdbData.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
         }
+      } else {
+        // Fallback to local server endpoint if needed
+        fetchServerMasterTree().then((serverData) => {
+          if (serverData && Array.isArray(serverData.nodes) && serverData.nodes.length > 0) {
+            setNodes(serverData.nodes);
+            setLinks(serverData.links || []);
+          }
+        }).catch(() => {});
       }
     }).catch(() => {});
 
-    // 3. Periodic server sync polling fallback (every 3 seconds) for live multi-user sync across all devices
+    // 3. Periodic Firebase Realtime Database direct polling fallback (every 3 seconds) for live multi-user sync
     const syncPollInterval = setInterval(() => {
-      fetchServerMasterTree().then((serverData) => {
-        if (serverData && Array.isArray(serverData.nodes) && serverData.nodes.length > 0) {
+      fetchFirebaseMasterTree().then((rtdbData) => {
+        if (rtdbData && Array.isArray(rtdbData.nodes) && rtdbData.nodes.length > 0) {
           setNodes(prev => {
-            if (serverData.nodes.length !== prev.length || JSON.stringify(serverData.nodes) !== JSON.stringify(prev)) {
-              setLinks(serverData.links || []);
+            if (rtdbData.nodes.length !== prev.length || JSON.stringify(rtdbData.nodes) !== JSON.stringify(prev)) {
+              setLinks(rtdbData.links || []);
               try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(serverData));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(rtdbData));
               } catch {}
-              if (serverData.lastUpdated) {
-                setLastSyncTime(new Date(serverData.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+              if (rtdbData.lastUpdated) {
+                setLastSyncTime(new Date(rtdbData.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
               }
-              return serverData.nodes;
+              return rtdbData.nodes;
             }
             return prev;
           });
