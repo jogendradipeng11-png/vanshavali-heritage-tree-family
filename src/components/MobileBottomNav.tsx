@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserPlus, Sparkles, Share2, Download, BarChart3, Clock, Table } from 'lucide-react';
+import { UserPlus, Sparkles, RotateCcw, Share2, Download, BarChart3, Clock, Table } from 'lucide-react';
 import { ViewMode } from './Header';
 
 interface MobileBottomNavProps {
@@ -7,6 +7,8 @@ interface MobileBottomNavProps {
   onViewModeChange: (mode: ViewMode) => void;
   onOpenAddModal: () => void;
   onAutoArrange: () => void;
+  isAutoAligned?: boolean;
+  onToggleAutoArrange?: () => void;
   onShareTree: () => void;
   onExportPDF: () => void;
   onOpenInsights: () => void;
@@ -17,6 +19,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onViewModeChange,
   onOpenAddModal,
   onAutoArrange,
+  isAutoAligned = false,
+  onToggleAutoArrange,
   onShareTree,
   onExportPDF,
   onOpenInsights

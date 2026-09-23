@@ -1,17 +1,19 @@
 import React from 'react';
-import { Target, X, Crown, Sparkles } from 'lucide-react';
+import { Target, X, Crown, Sparkles, Printer } from 'lucide-react';
 import { MemberNode } from '../types';
 
 interface SpotlightBannerProps {
   spotlightNode: MemberNode | null;
   onClear: () => void;
   isSharedOwnerMode?: boolean;
+  onPrintOwnBranch?: () => void;
 }
 
 export const SpotlightBanner: React.FC<SpotlightBannerProps> = ({
   spotlightNode,
   onClear,
-  isSharedOwnerMode = false
+  isSharedOwnerMode = false,
+  onPrintOwnBranch
 }) => {
   if (!spotlightNode) return null;
 
@@ -30,22 +32,36 @@ export const SpotlightBanner: React.FC<SpotlightBannerProps> = ({
         <span className="truncate">
           {isSharedOwnerMode ? (
             <>
-              <b>Shared Owner Access:</b> You are active on <b>{spotlightNode.name}</b> ({spotlightNode.relationship_to_root || 'Family'}). You can view, add relatives & edit your branch. Other branches are faded.
+              <b>Shared Owner Access:</b> Active on <b>{spotlightNode.name}</b> ({spotlightNode.relationship_to_root || 'Family'}).
             </>
           ) : (
             <>
-              Focused on <b>{spotlightNode.name}</b> ({spotlightNode.relationship_to_root}). Non-connected relatives are dimmed.
+              Focused on <b>{spotlightNode.name}</b> ({spotlightNode.relationship_to_root}).
             </>
           )}
         </span>
       </div>
-      <button
-        onClick={onClear}
-        className="px-2.5 py-1 bg-slate-900 text-white hover:bg-slate-800 rounded-lg font-bold text-[11px] shrink-0 ml-2 transition flex items-center gap-1 shadow-sm active:scale-95"
-      >
-        <X className="w-3.5 h-3.5" />
-        <span>{isSharedOwnerMode ? 'View Full Master Tree' : 'Show All'}</span>
-      </button>
+
+      <div className="flex items-center gap-2 shrink-0 ml-2">
+        {onPrintOwnBranch && (
+          <button
+            onClick={onPrintOwnBranch}
+            className="px-2.5 py-1 bg-slate-950/80 hover:bg-slate-950 text-amber-300 hover:text-white rounded-lg font-bold text-[11px] transition flex items-center gap-1 shadow-sm active:scale-95 border border-amber-600/50"
+            title="Print only this person's node and their directly linked relatives"
+          >
+            <Printer className="w-3.5 h-3.5 text-amber-300" />
+            <span>Print My Branch</span>
+          </button>
+        )}
+
+        <button
+          onClick={onClear}
+          className="px-2.5 py-1 bg-slate-900 text-white hover:bg-slate-800 rounded-lg font-bold text-[11px] transition flex items-center gap-1 shadow-sm active:scale-95"
+        >
+          <X className="w-3.5 h-3.5" />
+          <span>{isSharedOwnerMode ? 'Master Tree' : 'Show All'}</span>
+        </button>
+      </div>
     </div>
   );
 };

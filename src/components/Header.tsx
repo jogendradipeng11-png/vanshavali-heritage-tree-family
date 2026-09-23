@@ -3,6 +3,7 @@ import {
   GitBranch, 
   Search, 
   Sparkles, 
+  RotateCcw,
   Share2, 
   Download, 
   UserPlus, 
@@ -28,6 +29,9 @@ interface HeaderProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onAutoArrange: () => void;
+  isAutoAligned?: boolean;
+  onToggleAutoArrange?: () => void;
+  onPrintArchitecture: () => void;
   onOpenAddModal: () => void;
   onShareTree: () => void;
   onExportPDF: () => void;
@@ -52,6 +56,9 @@ export const Header: React.FC<HeaderProps> = ({
   searchQuery,
   onSearchChange,
   onAutoArrange,
+  isAutoAligned = false,
+  onToggleAutoArrange,
+  onPrintArchitecture,
   onOpenAddModal,
   onShareTree,
   onExportPDF,
@@ -250,14 +257,27 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="hidden lg:inline">Insights</span>
         </button>
 
-        {/* Auto Align */}
+        {/* Auto Align / Undo Toggle (1 click arrange automatically, another click revert) */}
         <button 
-          onClick={onAutoArrange}
-          title="Auto arrange generational layout"
-          className="px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5"
+          onClick={onToggleAutoArrange || onAutoArrange}
+          title={isAutoAligned ? "Click to revert to your previous custom arrangement" : "1-Click auto-arrange generations (click again to revert)"}
+          className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl border transition flex items-center gap-1.5 ${
+            isAutoAligned
+              ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 hover:bg-amber-500/30 ring-1 ring-amber-400/50 shadow-sm'
+              : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+          }`}
         >
-          <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
-          <span className="hidden lg:inline">Align Generations</span>
+          {isAutoAligned ? (
+            <>
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+              <span>Undo Align</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+              <span className="hidden lg:inline">Align Generations</span>
+            </>
+          )}
         </button>
 
         {/* Share Link */}
@@ -277,39 +297,49 @@ export const Header: React.FC<HeaderProps> = ({
             className="px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Export</span>
+            <span>Export & Print</span>
             <ChevronDown className="w-3 h-3 text-slate-400" />
           </button>
 
           {exportOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 text-xs py-1 animate-in fade-in duration-100">
+            <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 text-xs py-1 animate-in fade-in duration-100">
+              <button 
+                onClick={() => { setExportOpen(false); onPrintArchitecture(); }}
+                className="w-full text-left px-3.5 py-2.5 hover:bg-indigo-50/70 text-indigo-950 font-bold flex items-center gap-2.5 border-b border-slate-100 group"
+              >
+                <Printer className="w-4 h-4 text-indigo-600 shrink-0 group-hover:scale-110 transition" />
+                <div>
+                  <div className="font-extrabold text-indigo-900">Print Canvas Architecture</div>
+                  <div className="text-[10px] text-slate-500 font-normal">Print tree visually as it is on screen</div>
+                </div>
+              </button>
+              <button 
+                onClick={() => { setExportOpen(false); onPrint(); }}
+                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-2.5 border-b border-slate-100"
+              >
+                <Table className="w-4 h-4 text-slate-600" />
+                <span>Print Register Sheet (Table)</span>
+              </button>
               <button 
                 onClick={() => { setExportOpen(false); onExportPDF(); }}
-                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-2.5 border-b border-slate-100"
+                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-2.5 border-b border-slate-100"
               >
                 <FileText className="w-4 h-4 text-rose-500" />
                 <span>Lineage Register PDF</span>
               </button>
               <button 
                 onClick={() => { setExportOpen(false); onExportExcel(); }}
-                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-2.5 border-b border-slate-100"
+                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-2.5 border-b border-slate-100"
               >
                 <Table className="w-4 h-4 text-emerald-600" />
                 <span>Export to Excel (.xlsx)</span>
               </button>
               <button 
                 onClick={() => { setExportOpen(false); onExportWord(); }}
-                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-2.5 border-b border-slate-100"
+                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-2.5"
               >
                 <FileText className="w-4 h-4 text-blue-600" />
                 <span>Export to Word (.doc)</span>
-              </button>
-              <button 
-                onClick={() => { setExportOpen(false); onPrint(); }}
-                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-2.5"
-              >
-                <Printer className="w-4 h-4 text-slate-600" />
-                <span>Print Register View</span>
               </button>
             </div>
           )}

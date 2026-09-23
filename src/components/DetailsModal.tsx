@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Edit3, Target, Share2, FileDown, Heart, Users, MapPin, Phone, Briefcase } from 'lucide-react';
+import { X, Edit3, Target, Share2, FileDown, Heart, Users, MapPin, Phone, Briefcase, Printer } from 'lucide-react';
 import { MemberNode, RelationshipLink } from '../types';
 import { getRelativeSummary } from '../utils/treeUtils';
 
@@ -13,6 +13,7 @@ interface DetailsModalProps {
   onSpotlight: (nodeId: string) => void;
   onShare: (node: MemberNode) => void;
   onExportPDF: (node: MemberNode) => void;
+  onPrintBranch?: (node: MemberNode) => void;
   onJumpToRelative: (nodeId: string) => void;
 }
 
@@ -26,6 +27,7 @@ export const DetailsModal: React.FC<DetailsModalProps> = ({
   onSpotlight,
   onShare,
   onExportPDF,
+  onPrintBranch,
   onJumpToRelative
 }) => {
   if (!isOpen || !node) return null;
@@ -223,28 +225,41 @@ export const DetailsModal: React.FC<DetailsModalProps> = ({
           </div>
 
           {/* Quick Actions */}
-          <div className="pt-3 border-t border-slate-200 grid grid-cols-3 gap-2">
+          <div className="pt-3 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-2">
             <button
               onClick={() => onSpotlight(node.id)}
-              className="py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold flex items-center justify-center gap-1.5 transition"
+              className="py-2 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold flex items-center justify-center gap-1.5 transition"
+              title="Highlight this relative and immediate links"
             >
               <Target className="w-3.5 h-3.5 text-amber-600" />
               <span>Spotlight</span>
             </button>
             <button
               onClick={() => onShare(node)}
-              className="py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl font-bold flex items-center justify-center gap-1.5 transition"
+              className="py-2 px-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl font-bold flex items-center justify-center gap-1.5 transition"
+              title="Share record link"
             >
               <Share2 className="w-3.5 h-3.5 text-emerald-600" />
               <span>Share</span>
             </button>
             <button
               onClick={() => onExportPDF(node)}
-              className="py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-300 rounded-xl font-bold flex items-center justify-center gap-1.5 transition"
+              className="py-2 px-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-300 rounded-xl font-bold flex items-center justify-center gap-1.5 transition"
+              title="Download official dossier certificate"
             >
               <FileDown className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Dossier PDF</span>
+              <span>Dossier</span>
             </button>
+            {onPrintBranch && (
+              <button
+                onClick={() => onPrintBranch(node)}
+                className="py-2 px-2.5 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-800 rounded-xl font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                title="Print personal branch architecture & connected links"
+              >
+                <Printer className="w-3.5 h-3.5 text-amber-400" />
+                <span>Print Branch</span>
+              </button>
+            )}
           </div>
 
           {/* Footer */}

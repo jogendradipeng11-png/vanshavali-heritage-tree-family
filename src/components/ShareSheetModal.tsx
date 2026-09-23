@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, MessageSquare, Mail, Share2, Copy, Check } from 'lucide-react';
+import { X, MessageSquare, Mail, Share2, Copy, Check, Printer } from 'lucide-react';
 import { MemberNode } from '../types';
 
 interface ShareSheetModalProps {
@@ -7,13 +7,15 @@ interface ShareSheetModalProps {
   node: MemberNode | null;
   onClose: () => void;
   shareUrl: string;
+  onPrintBranch?: (node: MemberNode) => void;
 }
 
 export const ShareSheetModal: React.FC<ShareSheetModalProps> = ({
   isOpen,
   node,
   onClose,
-  shareUrl
+  shareUrl,
+  onPrintBranch
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -100,6 +102,20 @@ export const ShareSheetModal: React.FC<ShareSheetModalProps> = ({
             <Share2 className="w-4 h-4 text-indigo-400" />
             <span>Share via Apps / AirDrop</span>
           </button>
+
+          {/* Dedicated Print Own Node Lineage Button */}
+          {node && onPrintBranch && (
+            <button
+              onClick={() => {
+                onPrintBranch(node);
+              }}
+              className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-slate-950 rounded-xl font-extrabold flex items-center justify-center gap-2 transition active:scale-95 shadow-sm border border-amber-600/30"
+              title="Print only this person's node and their directly connected relatives"
+            >
+              <Printer className="w-4 h-4 text-slate-950" />
+              <span>Print {node.name}'s Branch Only</span>
+            </button>
+          )}
 
           {/* Direct Link Input */}
           <div className="pt-2 border-t border-slate-200">

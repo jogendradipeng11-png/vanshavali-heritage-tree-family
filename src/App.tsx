@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MemberNode, RelationshipLink, Branch, ActiveUser, RelationshipType } from './types';
 import { defaultTreeData, CARD_WIDTH, CARD_HEIGHT } from './initialData';
-import { Plus } from 'lucide-react';
-import { autoArrangeTree, getAllDescendantIds } from './utils/treeUtils';
+import { Plus, Printer, RotateCcw } from 'lucide-react';
+import { autoArrangeTree, getAllDescendantIds, getOwnBranchCluster } from './utils/treeUtils';
 import { 
   exportFullRegisterPDF, 
   exportSinglePersonPDF, 
   exportToExcel, 
-  exportToWord 
+  exportToWord,
+  printVisualTreeArchitecture,
+  exportBranchRegisterPDF
 } from './utils/exportUtils';
 import { 
   subscribeToOnlineStatus, 
@@ -43,6 +45,10 @@ export default function App() {
   const [spotlightNodeId, setSpotlightNodeId] = useState<string | null>(null);
   const [activeSharedNodeId, setActiveSharedNodeId] = useState<string | null>(null);
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
+
+  // 1-Click Auto Align and 2nd-Click Revert State
+  const [previousLayout, setPreviousLayout] = useState<MemberNode[] | null>(null);
+  const [isAutoAligned, setIsAutoAligned] = useState<boolean>(false);
 
   // Real-time Cloud Synchronization States
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -433,13 +439,21 @@ export default function App() {
         setSpotlightNodeId(newNodeId);
       }
 
-      saveState([...nodes, newNode], newLinksList);
+      // Automatically arrange tree according to strict genealogical rules:
+      // 1. Parent ALWAYS on top of relative
+      // 2. Child ALWAYS down just below relative
+      // 3. Spouse ALWAYS just near the husband/relative on the same line
+      // 4. Siblings ALWAYS on the exact same line
+      const rawNodes = [...nodes, newNode];
+      const arrangedNodes = autoArrangeTree(rawNodes, newLinksList);
+
+      saveState(arrangedNodes, newLinksList);
       showToast(`Added ${newNode.name} to the heritage register and sheet.`, 'success');
       setIsMemberModalOpen(false);
     }
   }, [editingNode, nodes, links, saveState, showToast, activeBranch, activeSharedNodeId]);
 
-  // Delete Node
+  // Delete Node with generation re-alignment
   const handleDeleteMember = useCallback((nodeId: string) => {
     const target = nodes.find(n => n.id === nodeId);
     if (!target) return;
@@ -447,7 +461,8 @@ export default function App() {
     if (window.confirm(`Permanently remove ${target.name} and all related relationship connections?`)) {
       const remainingNodes = nodes.filter(n => n.id !== nodeId);
       const remainingLinks = links.filter(l => l.source !== nodeId && l.target !== nodeId);
-      saveState(remainingNodes, remainingLinks);
+      const arrangedNodes = autoArrangeTree(remainingNodes, remainingLinks);
+      saveState(arrangedNodes, remainingLinks);
       showToast(`Removed ${target.name} from register.`, 'info');
       setIsMemberModalOpen(false);
       setEditingNode(null);
@@ -456,12 +471,66 @@ export default function App() {
     }
   }, [nodes, links, saveState, showToast, spotlightNodeId]);
 
-  // Auto Arrange
+  // 1-Click Auto Align and 2nd-Click Revert to before arrangement:
+  // - Parents on top
+  // - Children down below
+  // - Spouses adjacent on same line
+  // - Siblings on same line
+  const handleToggleAutoArrange = useCallback(() => {
+    if (isAutoAligned && previousLayout && previousLayout.length > 0) {
+      saveState(previousLayout, links);
+      setPreviousLayout(null);
+      setIsAutoAligned(false);
+      showToast('Restored your previous arrangement.', 'info');
+    } else {
+      setPreviousLayout([...nodes]);
+      const arranged = autoArrangeTree(nodes, links);
+      saveState(arranged, links);
+      setIsAutoAligned(true);
+      showToast('Generations aligned automatically! Click "Undo Align" to revert anytime.', 'success');
+    }
+  }, [isAutoAligned, previousLayout, nodes, links, saveState, showToast]);
+
   const handleAutoArrange = useCallback(() => {
-    const arranged = autoArrangeTree(nodes, links);
-    saveState(arranged, links);
-    showToast('Generations aligned automatically.', 'success');
-  }, [nodes, links, saveState, showToast]);
+    handleToggleAutoArrange();
+  }, [handleToggleAutoArrange]);
+
+  // Print nodes architecture "AS IT IS" on screen
+  const handlePrintArchitecture = useCallback(() => {
+    printVisualTreeArchitecture(
+      nodes,
+      links,
+      'Vanshavali Family Heritage Tree',
+      `Master Lineage Architecture Diagram — ${nodes.length} Members | Generated: ${new Date().toLocaleDateString()}`
+    );
+    showToast('Opening visual canvas architecture print preview...', 'info');
+  }, [nodes, links, showToast]);
+
+  // Print only own node links (personal branch architecture & connected relatives)
+  const handlePrintOwnNodeBranch = useCallback((targetNode?: MemberNode | null) => {
+    const activeNode = targetNode || (spotlightNodeId ? nodes.find(n => n.id === spotlightNodeId) : null) || (activeSharedNodeId ? nodes.find(n => n.id === activeSharedNodeId) : null) || nodes[0];
+    if (!activeNode) {
+      showToast('Please select a relative node to print their branch.', 'error');
+      return;
+    }
+
+    const { branchNodes, branchLinks } = getOwnBranchCluster(activeNode.id, nodes, links);
+    if (branchNodes.length === 0) {
+      showToast('No branch relatives found.', 'error');
+      return;
+    }
+
+    // Auto-arrange the isolated branch so it centers nicely on page
+    const arrangedBranch = autoArrangeTree(branchNodes, branchLinks);
+
+    printVisualTreeArchitecture(
+      arrangedBranch,
+      branchLinks,
+      `${activeNode.name}'s Family Branch Architecture`,
+      `Personal Lineage Architecture: ${activeNode.name} & Directly Linked Relatives (${branchNodes.length} members) | Generated: ${new Date().toLocaleDateString()}`
+    );
+    showToast(`Printing ${activeNode.name}'s branch architecture (${branchNodes.length} relatives)...`, 'success');
+  }, [spotlightNodeId, activeSharedNodeId, nodes, links, showToast]);
 
   // Locate on tree from timeline
   const handleLocateOnTree = useCallback((node: MemberNode) => {
@@ -576,6 +645,9 @@ export default function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onAutoArrange={handleAutoArrange}
+        isAutoAligned={isAutoAligned}
+        onToggleAutoArrange={handleToggleAutoArrange}
+        onPrintArchitecture={handlePrintArchitecture}
         onOpenAddModal={handleOpenAddModal}
         onShareTree={handleShareTree}
         onExportPDF={() => { exportFullRegisterPDF(nodes, links); showToast('Full PDF Register downloaded.', 'success'); }}
@@ -597,6 +669,7 @@ export default function App() {
         spotlightNode={spotlightNode}
         onClear={handleClearSpotlight}
         isSharedOwnerMode={Boolean(activeSharedNodeId && spotlightNodeId === activeSharedNodeId)}
+        onPrintOwnBranch={() => handlePrintOwnNodeBranch(spotlightNode)}
       />
 
       {/* Main View Area: Tree Canvas, Sheet Register, and/or Chronological Timeline View */}
@@ -637,14 +710,29 @@ export default function App() {
               onToggleCollapse={handleToggleCollapse}
               onUpdateNodePosition={handleUpdateNodePosition}
               onDragFinish={handleDragFinish}
+              onPrintArchitecture={handlePrintArchitecture}
             />
 
             {/* Quick Contributor Floating Action for Shared Node Collaborator */}
             {activeSharedNodeId && (
               <div className="hidden sm:flex absolute bottom-6 left-6 z-30 bg-slate-900/95 backdrop-blur-md border border-amber-500/50 rounded-2xl p-4 shadow-2xl max-w-xs flex-col gap-2 pointer-events-auto">
-                <div className="flex items-center gap-2 text-amber-400 font-black text-xs">
-                  <span className="text-base">👑</span>
-                  <span>Branch Contributor Mode</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-amber-400 font-black text-xs">
+                    <span className="text-base">👑</span>
+                    <span>Branch Contributor Mode</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sharedNode = nodes.find(n => n.id === activeSharedNodeId);
+                      handlePrintOwnNodeBranch(sharedNode);
+                    }}
+                    className="p-1 px-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-amber-500/30"
+                    title="Print own node and directly linked relatives"
+                  >
+                    <Printer className="w-3 h-3" />
+                    <span>Print Branch</span>
+                  </button>
                 </div>
                 <p className="text-slate-300 text-[11px] leading-relaxed">
                   Your branch is spotlighted and relatives you add automatically sync to everyone&apos;s master register sheet.
@@ -694,6 +782,8 @@ export default function App() {
         onViewModeChange={setViewMode}
         onOpenAddModal={handleOpenAddModal}
         onAutoArrange={handleAutoArrange}
+        isAutoAligned={isAutoAligned}
+        onToggleAutoArrange={handleToggleAutoArrange}
         onShareTree={handleShareTree}
         onExportPDF={() => { exportFullRegisterPDF(nodes, links); showToast('Full PDF Register downloaded.', 'success'); }}
         onOpenInsights={() => setIsInsightsOpen(true)}
@@ -710,6 +800,7 @@ export default function App() {
         onSpotlight={handleSpotlight}
         onShare={handleShareNode}
         onExportPDF={(n) => { exportSinglePersonPDF(n, nodes, links); showToast(`Dossier PDF for ${n.name} exported.`, 'success'); }}
+        onPrintBranch={(n) => handlePrintOwnNodeBranch(n)}
         onJumpToRelative={handleJumpToRelative}
       />
 
@@ -733,6 +824,7 @@ export default function App() {
         node={shareSheetNode}
         onClose={() => { setIsShareSheetOpen(false); setShareSheetNode(null); }}
         shareUrl={shareUrl}
+        onPrintBranch={(n) => handlePrintOwnNodeBranch(n)}
       />
 
       {/* Lineage Insights Modal */}

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Minus, RotateCcw, Crosshair } from 'lucide-react';
+import { Plus, Minus, RotateCcw, Crosshair, Printer } from 'lucide-react';
 import { MemberNode, RelationshipLink, Branch } from '../types';
 import { MemberCard } from './MemberCard';
 import { CARD_WIDTH, CARD_HEIGHT } from '../initialData';
@@ -20,6 +20,7 @@ interface TreeCanvasProps {
   onToggleCollapse: (nodeId: string, e: React.MouseEvent) => void;
   onUpdateNodePosition: (nodeId: string, x: number, y: number) => void;
   onDragFinish?: () => void;
+  onPrintArchitecture?: () => void;
 }
 
 export const TreeCanvas: React.FC<TreeCanvasProps> = ({
@@ -36,7 +37,8 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
   onAddRelative,
   onToggleCollapse,
   onUpdateNodePosition,
-  onDragFinish
+  onDragFinish,
+  onPrintArchitecture
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 80, y: 100 });
@@ -446,6 +448,15 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
         >
           <Crosshair className="w-4 h-4 text-amber-400" />
         </button>
+        {onPrintArchitecture && (
+          <button
+            onClick={onPrintArchitecture}
+            title="Print Visual Tree Architecture As It Is"
+            className="w-10 h-10 rounded-xl hover:bg-slate-800 text-indigo-400 hover:text-white font-bold text-sm flex items-center justify-center transition active:scale-95 border-t border-slate-700/60 pt-1"
+          >
+            <Printer className="w-4 h-4 text-indigo-300" />
+          </button>
+        )}
       </div>
     </div>
   );
