@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { X, Trash2, FileDown, Share2, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Trash2, FileDown, Share2, Sparkles, Camera, Smile, Upload, Link as LinkIcon, RotateCcw } from 'lucide-react';
 import { MemberNode, RelationshipLink, Branch, Gender, LivingStatus, MaritalStatus, RelationshipType } from '../types';
 import { CARD_WIDTH, CARD_HEIGHT } from '../initialData';
+import { STICKER_PRESETS, getDefaultSticker } from '../utils/stickerPresets';
 
 interface MemberModalProps {
   isOpen: boolean;
@@ -43,6 +44,11 @@ export const MemberModal: React.FC<MemberModalProps> = ({
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [sticker, setSticker] = useState('');
+  const [pictureTab, setPictureTab] = useState<'stickers' | 'upload' | 'url'>('stickers');
+  const [selectedStickerCategory, setSelectedStickerCategory] = useState<'all' | 'ancestors' | 'adults' | 'youth' | 'heritage'>('all');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Linking fields (for new additions)
   const [linkTargetId, setLinkTargetId] = useState<string>('');
@@ -65,6 +71,8 @@ export const MemberModal: React.FC<MemberModalProps> = ({
       setPhone(editingNode.phone || '');
       setAddress(editingNode.address || '');
       setNotes(editingNode.notes || '');
+      setPhotoUrl(editingNode.photo_url || '');
+      setSticker(editingNode.sticker || '');
     } else {
       const targetNode = targetLinkNodeId ? nodes.find(n => n.id === targetLinkNodeId) : (nodes[0] || null);
       setName('');
@@ -82,10 +90,31 @@ export const MemberModal: React.FC<MemberModalProps> = ({
       setPhone('');
       setAddress(targetNode?.address || '');
       setNotes('');
+      setPhotoUrl('');
+      setSticker('');
       setLinkTargetId(targetLinkNodeId || (nodes[0]?.id || ''));
       setLinkRelationType('child');
     }
   }, [editingNode, targetLinkNodeId, nodes, activeBranch, isOpen]);
+
+  // Handle local image upload as Data URL
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 3 * 1024 * 1024) {
+        alert('Image exceeds 3MB. Please choose a smaller photo.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setPhotoUrl(reader.result);
+          setSticker('');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Auto-calculate age whenever DOB or DOD changes
   const handleDateChange = (newDob: string, newDod: string, currentStatus: LivingStatus) => {
@@ -129,7 +158,9 @@ export const MemberModal: React.FC<MemberModalProps> = ({
       profession: profession.trim(),
       phone: phone.trim(),
       address: address.trim(),
-      notes: notes.trim()
+      notes: notes.trim(),
+      photo_url: photoUrl.trim() || undefined,
+      sticker: sticker.trim() || undefined
     };
 
     if (editingNode) {
@@ -163,6 +194,215 @@ export const MemberModal: React.FC<MemberModalProps> = ({
 
         {/* Modal Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
+          {/* Section: Picture / Sticker Avatar */}
+          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="font-extrabold text-slate-900 flex items-center gap-1.5 text-xs">
+                <span className="text-sm">🏷️</span>
+                <span>Person Picture / Portrait Sticker</span>
+              </label>
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setPictureTab('stickers')}
+                  className={`px-2 py-0.5 rounded font-bold transition flex items-center gap-1 ${
+                    pictureTab === 'stickers'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Smile className="w-3 h-3" />
+                  <span>Stickers</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPictureTab('upload')}
+                  className={`px-2 py-0.5 rounded font-bold transition flex items-center gap-1 ${
+                    pictureTab === 'upload'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Camera className="w-3 h-3" />
+                  <span>Upload</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPictureTab('url')}
+                  className={`px-2 py-0.5 rounded font-bold transition flex items-center gap-1 ${
+                    pictureTab === 'url'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LinkIcon className="w-3 h-3" />
+                  <span>URL</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Current Selected Sticker / Picture Preview Bar */}
+            <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="relative shrink-0">
+                {photoUrl ? (
+                  <div className="w-13 h-13 rounded-2xl overflow-hidden ring-2 ring-indigo-500/30 shadow-md border-2 border-white bg-slate-100 flex items-center justify-center">
+                    <img src={photoUrl} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className={`w-13 h-13 rounded-2xl ring-2 ring-amber-400/40 shadow-md border-2 border-white flex items-center justify-center text-3xl ${
+                    branch === 'maternal'
+                      ? 'bg-gradient-to-tr from-rose-100 via-pink-50 to-amber-50'
+                      : 'bg-gradient-to-tr from-indigo-100 via-sky-50 to-amber-50'
+                  }`}>
+                    <span>{sticker || getDefaultSticker(gender, status, age ? parseInt(age, 10) : null, relationshipToRoot)}</span>
+                  </div>
+                )}
+                <span className="absolute -bottom-1 -right-1 text-[9px] bg-slate-900 text-white rounded-full px-1 shadow border border-white">
+                  🏷️
+                </span>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-slate-800 text-xs">
+                  {photoUrl ? 'Custom Photograph Sticker' : (sticker ? `Sticker: ${sticker}` : 'Default Smart Sticker')}
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  {photoUrl ? 'Displays inside sticker frame on member card' : 'Select a sticker preset or upload a portrait'}
+                </div>
+              </div>
+
+              {(photoUrl || sticker) && (
+                <button
+                  type="button"
+                  onClick={() => { setPhotoUrl(''); setSticker(''); }}
+                  title="Reset to default sticker"
+                  className="px-2 py-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 text-[10px] font-bold transition flex items-center gap-1 shrink-0"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
+
+            {/* Tab 1: Sticker Gallery */}
+            {pictureTab === 'stickers' && (
+              <div className="space-y-2">
+                {/* Category Filter Pills */}
+                <div className="flex flex-wrap gap-1">
+                  {(['all', 'ancestors', 'adults', 'youth', 'heritage'] as const).map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedStickerCategory(cat)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition capitalize ${
+                        selectedStickerCategory === cat
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {cat === 'all' ? '✨ All Stickers' : cat}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sticker Grid */}
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-36 overflow-y-auto p-1 bg-white rounded-xl border border-slate-200">
+                  {STICKER_PRESETS.filter(p => selectedStickerCategory === 'all' || p.category === selectedStickerCategory).map(preset => {
+                    const isSelected = sticker === preset.emoji && !photoUrl;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setSticker(preset.emoji);
+                          setPhotoUrl('');
+                        }}
+                        title={preset.label}
+                        className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 relative group cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-400/40 shadow-xs'
+                            : 'border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="text-2xl transform group-hover:scale-110 transition-transform">
+                          {preset.emoji}
+                        </span>
+                        <span className="text-[8px] font-medium text-slate-600 truncate w-full">
+                          {preset.label.split('/')[0]}
+                        </span>
+                        {isSelected && (
+                          <span className="absolute top-1 right-1 w-3 h-3 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[7px]">
+                            ✓
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Upload File */}
+            {pictureTab === 'upload' && (
+              <div className="space-y-2 bg-white p-3 rounded-xl border border-slate-200">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-xl p-4 text-center cursor-pointer transition hover:bg-indigo-50/30 flex flex-col items-center justify-center gap-1.5"
+                >
+                  <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-xs">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <div className="font-bold text-slate-800 text-xs">
+                    Click to Choose Picture from Device
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    Supports JPG, PNG, WEBP (Max 3MB) • Instant local preview & offline save
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 3: Image URL */}
+            {pictureTab === 'url' && (
+              <div className="space-y-1.5 bg-white p-3 rounded-xl border border-slate-200">
+                <label className="block text-[11px] font-bold text-slate-700">
+                  Web Image URL
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={photoUrl}
+                    onChange={(e) => {
+                      setPhotoUrl(e.target.value);
+                      if (e.target.value) setSticker('');
+                    }}
+                    placeholder="https://example.com/ancestor-photo.jpg"
+                    className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  {photoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoUrl('')}
+                      className="px-2.5 py-1 text-[11px] font-bold text-slate-500 hover:text-rose-600 border border-slate-300 rounded-lg"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  Paste any public link to a portrait or photograph.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Section 1: Core Identity */}
           <div className="space-y-3 pb-3 border-b border-slate-200">
             <div>

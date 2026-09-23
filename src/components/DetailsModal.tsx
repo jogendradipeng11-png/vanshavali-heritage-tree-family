@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Edit3, Target, Share2, FileDown, Heart, Users, MapPin, Phone, Briefcase, Printer } from 'lucide-react';
+import { X, Edit3, Target, Share2, FileDown, Heart, Users, MapPin, Phone, Briefcase, Printer, Camera } from 'lucide-react';
 import { MemberNode, RelationshipLink } from '../types';
 import { getRelativeSummary } from '../utils/treeUtils';
+import { getDefaultSticker } from '../utils/stickerPresets';
 
 interface DetailsModalProps {
   node: MemberNode | null;
@@ -36,6 +37,7 @@ export const DetailsModal: React.FC<DetailsModalProps> = ({
   const isDeceased = node.status === 'deceased';
   const isMaternal = node.branch === 'maternal';
   const isMarried = node.marital_status === 'married';
+  const stickerEmoji = node.sticker || (isDeceased ? '🕊️' : getDefaultSticker(node.gender, node.status, node.age, node.relationship_to_root));
 
   return (
     <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
@@ -57,26 +59,64 @@ export const DetailsModal: React.FC<DetailsModalProps> = ({
         {/* Content */}
         <div className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
           {/* Identity Card */}
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <h3 className={`text-lg font-black text-slate-900 ${isDeceased ? 'text-slate-600 line-through' : ''}`}>
-                {node.name}
-              </h3>
-              <div className="flex items-center gap-1.5">
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  isDeceased ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-800'
-                }`}>
-                  {isDeceased ? '🕊️ Deceased' : '🌱 Living'}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-600 text-white uppercase">
-                  {isMaternal ? "Wife's Side" : "Main Line"}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+            <div className="flex items-start gap-3.5">
+              {/* Large Portrait Sticker Frame */}
+              <div className="relative shrink-0">
+                {node.photo_url ? (
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden ring-3 ring-indigo-500/30 shadow-lg border-2 border-white bg-slate-100 flex items-center justify-center">
+                    <img src={node.photo_url} alt={node.name} className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className={`w-16 h-16 rounded-2xl ring-3 shadow-lg border-2 border-white flex items-center justify-center text-4xl ${
+                    isMaternal 
+                      ? 'bg-gradient-to-tr from-rose-100 via-pink-50 to-amber-50 ring-rose-400/40' 
+                      : 'bg-gradient-to-tr from-indigo-100 via-sky-50 to-amber-50 ring-indigo-400/40'
+                  }`}>
+                    <span>{stickerEmoji}</span>
+                  </div>
+                )}
+                <span className="absolute -bottom-1 -right-1 text-[10px] bg-slate-900 text-white rounded-full px-1 shadow border border-white">
+                  🏷️
                 </span>
               </div>
-            </div>
 
-            <p className="text-xs font-bold text-indigo-700">
-              {node.relationship_to_root}
-            </p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1 flex-wrap">
+                  <h3 className={`text-lg font-black text-slate-900 truncate ${isDeceased ? 'text-slate-600 line-through' : ''}`}>
+                    {node.name}
+                  </h3>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      isDeceased ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {isDeceased ? '🕊️ Deceased' : '🌱 Living'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase text-white ${
+                      isMaternal ? 'bg-rose-600' : 'bg-indigo-600'
+                    }`}>
+                      {isMaternal ? "Wife's Side" : "Main Line"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs font-bold text-indigo-700">
+                    {node.relationship_to_root}
+                  </p>
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onEdit(node);
+                    }}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    <span>Change Picture / Sticker</span>
+                  </button>
+                </div>
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/70 text-slate-700">
               <div>

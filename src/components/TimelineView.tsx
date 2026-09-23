@@ -19,6 +19,7 @@ import {
 import { MemberNode, RelationshipLink, Branch, LivingStatus } from '../types';
 import { buildTimelineItems, TimelineMemberItem } from '../utils/timelineUtils';
 import { getRelativeSummary } from '../utils/treeUtils';
+import { getDefaultSticker } from '../utils/stickerPresets';
 
 interface TimelineViewProps {
   nodes: MemberNode[];
@@ -249,13 +250,11 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                   const isMarried = node.marital_status === 'married';
                   const rels = getRelativeSummary(node.id, nodes, links);
 
-                  const avatarIcon = isDeceased 
-                    ? '🕊️' 
-                    : (node.gender === 'female' ? '👩' : (node.age && node.age < 16 ? '👦' : '👨'));
+                  const stickerEmoji = node.sticker || (isDeceased ? '🕊️' : getDefaultSticker(node.gender, node.status, node.age, node.relationship_to_root));
 
                   const spineDotColor = isDeceased 
                     ? 'bg-slate-400 ring-slate-600' 
-                    : (isMaternal ? 'bg-amber-400 ring-amber-500' : 'bg-indigo-400 ring-indigo-500');
+                    : (isMaternal ? 'bg-rose-500 ring-rose-400' : 'bg-indigo-400 ring-indigo-500');
 
                   return (
                     <div key={node.id} className="relative group">
@@ -279,7 +278,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                           <div className="flex items-center gap-1.5">
                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
                               isMaternal 
-                                ? 'bg-amber-500 text-slate-950' 
+                                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white' 
                                 : 'bg-indigo-600 text-white'
                             }`}>
                               {isMaternal ? "Wife's Side" : 'Main Line'}
@@ -295,8 +294,22 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                         {/* Relative Details Header */}
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-2.5">
-                            <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-lg shrink-0 shadow-inner">
-                              {avatarIcon}
+                            {/* Sticker / Photo Frame */}
+                            <div className="relative w-10 h-10 shrink-0">
+                              {node.photo_url ? (
+                                <div className="w-10 h-10 rounded-xl overflow-hidden ring-2 ring-white/80 shadow-md border border-slate-700 bg-slate-900 flex items-center justify-center">
+                                  <img src={node.photo_url} alt={node.name} className="w-full h-full object-cover" />
+                                </div>
+                              ) : (
+                                <div className={`w-10 h-10 rounded-xl ring-2 ring-white/60 shadow-md border border-slate-700 flex items-center justify-center text-xl ${
+                                  isMaternal ? 'bg-rose-950/60' : 'bg-slate-900'
+                                }`}>
+                                  <span>{stickerEmoji}</span>
+                                </div>
+                              )}
+                              <span className="absolute -bottom-1 -right-1 text-[8px] bg-slate-900 text-white rounded-full px-0.5 shadow border border-slate-700">
+                                🏷️
+                              </span>
                             </div>
                             <div>
                               <h3 

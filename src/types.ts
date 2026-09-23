@@ -21,6 +21,8 @@ export interface MemberNode {
   phone?: string;
   address?: string;
   notes?: string;
+  photo_url?: string;
+  sticker?: string;
   x: number;
   y: number;
 }

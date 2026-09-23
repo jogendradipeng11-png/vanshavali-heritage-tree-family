@@ -1,6 +1,7 @@
 import React from 'react';
-import { Share2, UserPlus, Heart, Briefcase, Calendar, MapPin, Edit3 } from 'lucide-react';
+import { Share2, UserPlus, Heart, Briefcase, Calendar, MapPin, Edit3, Camera } from 'lucide-react';
 import { MemberNode } from '../types';
+import { getDefaultSticker } from '../utils/stickerPresets';
 
 interface MemberCardProps {
   node: MemberNode;
@@ -51,9 +52,7 @@ export const MemberCard: React.FC<MemberCardProps> = ({
     ? 'spotlight-active ring-4 ring-amber-400 ring-offset-4 ring-offset-slate-900 z-30' 
     : '';
 
-  const avatarIcon = isDeceased 
-    ? '🕊️' 
-    : (node.gender === 'female' ? '👩' : (node.age && node.age < 16 ? '👦' : '👨'));
+  const stickerEmoji = node.sticker || (isDeceased ? '🕊️' : getDefaultSticker(node.gender, node.status, node.age, node.relationship_to_root));
 
   return (
     <div
@@ -118,11 +117,35 @@ export const MemberCard: React.FC<MemberCardProps> = ({
           </div>
         </div>
 
-        {/* Member Name & Relationship */}
+        {/* Member Name & Relationship with Sticker / Picture Portrait */}
         <div className="flex items-start gap-2 pt-0.5">
-          <div className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-sm shrink-0 shadow-xs">
-            {avatarIcon}
+          {/* Sticker / Photo Portrait Frame */}
+          <div 
+            className="relative w-9 h-9 shrink-0 group/sticker"
+            title={node.photo_url ? `Photo of ${node.name}` : `Sticker portrait of ${node.name}`}
+          >
+            {node.photo_url ? (
+              <div className="w-9 h-9 rounded-xl overflow-hidden ring-2 ring-white shadow-md border border-slate-300 bg-slate-100 flex items-center justify-center transform transition-transform group-hover/sticker:scale-105">
+                <img 
+                  src={node.photo_url} 
+                  alt={node.name} 
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className={`w-9 h-9 rounded-xl ring-2 ring-white shadow-md border border-slate-200 flex items-center justify-center text-lg transform transition-transform group-hover/sticker:scale-110 group-hover/sticker:rotate-[-3deg] ${
+                isMaternal 
+                  ? 'bg-gradient-to-tr from-rose-100 via-pink-50 to-amber-50' 
+                  : 'bg-gradient-to-tr from-indigo-100 via-sky-50 to-amber-50'
+              }`}>
+                <span>{stickerEmoji}</span>
+              </div>
+            )}
+            <span className="absolute -bottom-1 -right-1 text-[8px] bg-white rounded-full px-0.5 shadow-xs border border-slate-200">
+              🏷️
+            </span>
           </div>
+
           <div className="min-w-0 flex-1">
             <h3 className={`font-black text-slate-950 text-[13px] leading-tight tracking-tight truncate ${
               isDeceased ? 'text-slate-600 line-through decoration-slate-400' : ''

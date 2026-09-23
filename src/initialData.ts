@@ -22,6 +22,7 @@ export const defaultTreeData: TreeData = {
       phone: "",
       address: "Barpali, Bargarh",
       notes: "Founding elder of the Barpali lineage.",
+      sticker: "👳‍♂️",
       x: 360,
       y: 50
     },
@@ -42,6 +43,7 @@ export const defaultTreeData: TreeData = {
       phone: "",
       address: "Bargarh, Odisha",
       notes: "Prominent educator and village elder.",
+      sticker: "👴",
       x: 360,
       y: 290
     },
@@ -61,6 +63,7 @@ export const defaultTreeData: TreeData = {
       phone: "+91 94370 12345",
       address: "Sambalpur, Odisha",
       notes: "Active community leader.",
+      sticker: "👨",
       x: 360,
       y: 540
     },
@@ -80,6 +83,7 @@ export const defaultTreeData: TreeData = {
       phone: "+91 98610 54321",
       address: "Bhubaneswar, Odisha",
       notes: "Custodian of digital Vanshavali archive.",
+      sticker: "🤵",
       x: 360,
       y: 800
     },
@@ -99,6 +103,7 @@ export const defaultTreeData: TreeData = {
       phone: "+91 98610 11111",
       address: "Bhubaneswar, Odisha",
       notes: "Eldest daughter of Cuttack Bharadwaj gotra lineage.",
+      sticker: "👰",
       x: 660,
       y: 800
     },
@@ -118,6 +123,7 @@ export const defaultTreeData: TreeData = {
       phone: "+91 98610 22222",
       address: "Rourkela, Odisha",
       notes: "Brother-in-law to Root.",
+      sticker: "👨‍💼",
       x: 960,
       y: 800
     },
@@ -137,6 +143,7 @@ export const defaultTreeData: TreeData = {
       phone: "+91 94371 33333",
       address: "Cuttack, Odisha",
       notes: "Patriarch of Bharadwaj in-law branch.",
+      sticker: "👴",
       x: 800,
       y: 540
     },
@@ -156,6 +163,7 @@ export const defaultTreeData: TreeData = {
       phone: "+91 98610 44444",
       address: "Jharsuguda, Odisha",
       notes: "Second spouse with distinct Gotra heritage.",
+      sticker: "👩‍⚕️",
       x: 60,
       y: 800
     },
@@ -175,6 +183,7 @@ export const defaultTreeData: TreeData = {
       phone: "",
       address: "Bhubaneswar, Odisha",
       notes: "Latest generation scion.",
+      sticker: "👦",
       x: 510,
       y: 1060
     }

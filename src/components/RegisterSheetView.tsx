@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { MemberNode, RelationshipLink, Branch, LivingStatus } from '../types';
 import { getRelativeSummary } from '../utils/treeUtils';
+import { getDefaultSticker } from '../utils/stickerPresets';
 
 interface RegisterSheetViewProps {
   nodes: MemberNode[];
@@ -275,12 +276,18 @@ export const RegisterSheetView: React.FC<RegisterSheetViewProps> = ({
                     {/* Member Name & Status */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-xs ${
-                          node.gender === 'female' 
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' 
-                            : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                        }`}>
-                          {node.name ? node.name.charAt(0).toUpperCase() : '?'}
+                        <div className="relative w-8 h-8 shrink-0">
+                          {node.photo_url ? (
+                            <div className="w-8 h-8 rounded-lg overflow-hidden ring-1 ring-white/60 shadow-xs border border-slate-700 bg-slate-900 flex items-center justify-center">
+                              <img src={node.photo_url} alt={node.name} className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className={`w-8 h-8 rounded-lg ring-1 ring-white/40 shadow-xs border border-slate-700 flex items-center justify-center text-base ${
+                              node.branch === 'maternal' ? 'bg-rose-950/60' : 'bg-slate-900'
+                            }`}>
+                              <span>{node.sticker || (node.status === 'deceased' ? '🕊️' : getDefaultSticker(node.gender, node.status, node.age, node.relationship_to_root))}</span>
+                            </div>
+                          )}
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5">
