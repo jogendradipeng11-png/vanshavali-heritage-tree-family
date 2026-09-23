@@ -23,6 +23,7 @@ import { DetailsModal } from './components/DetailsModal';
 import { ShareSheetModal } from './components/ShareSheetModal';
 import { InsightsModal } from './components/InsightsModal';
 import { AuthModal } from './components/AuthModal';
+import { FirebaseSyncModal } from './components/FirebaseSyncModal';
 import { PrintRegister } from './components/PrintRegister';
 import { MobileBottomNav } from './components/MobileBottomNav';
 
@@ -43,6 +44,8 @@ export default function App() {
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [hasPermissionError, setHasPermissionError] = useState<boolean>(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
 
   // Modals & Drawers
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
@@ -126,25 +129,32 @@ export default function App() {
     });
 
     // 2. Subscribe to Firebase real-time master tree updates
-    const unsubTree = subscribeToMasterTree((cloudData, lastUpdated) => {
-      if (cloudData && Array.isArray(cloudData.nodes) && cloudData.nodes.length > 0) {
-        setNodes(cloudData.nodes);
-        setLinks(cloudData.links || []);
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
-        } catch {}
+    const unsubTree = subscribeToMasterTree(
+      (cloudData, lastUpdated) => {
+        setHasPermissionError(false);
+        if (cloudData && Array.isArray(cloudData.nodes) && cloudData.nodes.length > 0) {
+          setNodes(cloudData.nodes);
+          setLinks(cloudData.links || []);
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
+          } catch {}
 
-        if (lastUpdated) {
-          const timeStr = new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          setLastSyncTime(timeStr);
+          if (lastUpdated) {
+            const timeStr = new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            setLastSyncTime(timeStr);
+          } else {
+            setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          }
         } else {
-          setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          // If cloud database is empty, seed it with initial master lineage
+          pushMasterTreeToCloud(loadedNodes, loadedLinks).catch(() => {});
         }
-      } else {
-        // If cloud database is empty, seed it with initial master lineage
-        pushMasterTreeToCloud(loadedNodes, loadedLinks).catch(() => {});
+      },
+      (errMsg) => {
+        console.warn('Firebase Realtime Database permission error:', errMsg);
+        setHasPermissionError(true);
       }
-    });
+    );
 
     return () => {
       unsubOnline();
@@ -165,9 +175,14 @@ export default function App() {
     // Push directly to Firebase Realtime Database
     setIsSyncing(true);
     pushMasterTreeToCloud(newNodes, newLinks)
-      .then(() => {
+      .then((res) => {
         setIsSyncing(false);
-        setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        if (res.success) {
+          setHasPermissionError(false);
+          setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        } else if (res.error?.includes('permission_denied') || res.error?.includes('Permission denied')) {
+          setHasPermissionError(true);
+        }
       })
       .catch((err) => {
         setIsSyncing(false);
@@ -481,6 +496,8 @@ export default function App() {
         isOnline={isOnline}
         isSyncing={isSyncing}
         lastSyncTime={lastSyncTime}
+        hasPermissionError={hasPermissionError}
+        onOpenSyncModal={() => setIsSyncModalOpen(true)}
       />
 
       {/* Spotlight / Shared Owner Mode Banner */}
@@ -595,6 +612,23 @@ export default function App() {
         onLogin={(u) => { setActiveUser(u); localStorage.setItem(USER_KEY, JSON.stringify(u)); showToast(`Switched profile to ${u.verifiedName}.`, 'success'); }}
         onStartNewTree={handleStartNewTree}
         nodes={nodes}
+      />
+
+      {/* Firebase Real-time Cloud Sync & Rules Diagnosis Modal */}
+      <FirebaseSyncModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        isOnline={isOnline}
+        isSyncing={isSyncing}
+        lastSyncTime={lastSyncTime}
+        hasPermissionError={hasPermissionError}
+        nodes={nodes}
+        links={links}
+        onSyncSuccess={() => {
+          setHasPermissionError(false);
+          setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          showToast('Firebase master tree synchronized successfully!', 'success');
+        }}
       />
 
       {/* Print View Table for @media print */}

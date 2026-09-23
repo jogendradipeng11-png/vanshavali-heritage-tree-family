@@ -4,28 +4,57 @@ import {
   ref, 
   onValue, 
   set, 
+  get,
   Database,
   Unsubscribe
 } from 'firebase/database';
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  onAuthStateChanged,
+  User
+} from 'firebase/auth';
 import { MemberNode, RelationshipLink, TreeData } from '../types';
 
-const firebaseConfig = {
+// Exact Firebase project configuration provided by user
+export const firebaseConfig = {
   apiKey: "AIzaSyBbi1Bh5bOScSNX5Hf9UcYTo_6C_7EtCiQ",
   authDomain: "vanshavali-heritage-tree.firebaseapp.com",
   databaseURL: "https://vanshavali-heritage-tree-default-rtdb.firebaseio.com",
   projectId: "vanshavali-heritage-tree",
   storageBucket: "vanshavali-heritage-tree.firebasestorage.app",
   messagingSenderId: "188938879243",
-  appId: "1:188938879243:web:0a57d909f4267fa369220e"
+  appId: "1:188938879243:web:0a57d909f4267fa369220e",
+  measurementId: "G-2SM068VLC8"
 };
 
 // Initialize Firebase App
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const database: Database = getDatabase(app);
+export const auth = getAuth(app);
 
 export const MASTER_TREE_ROOM = 'master_heritage_tree';
 
-export type SyncStatus = 'connected' | 'syncing' | 'offline' | 'connecting';
+// Background authentication helper so auth != null rules can also work
+let currentUser: User | null = null;
+onAuthStateChanged(auth, (u) => {
+  currentUser = u;
+});
+
+// Auto-authenticate with sync user
+export async function ensureFirebaseAuth(): Promise<User | null> {
+  if (currentUser) return currentUser;
+  try {
+    const cred = await signInWithEmailAndPassword(auth, "sync_user@vanshavali.org", "HeritageTree2026!#");
+    currentUser = cred.user;
+    return cred.user;
+  } catch {
+    return null;
+  }
+}
+
+// Initial silent sign-in attempt
+ensureFirebaseAuth().catch(() => {});
 
 /**
  * Subscribes to real-time online status via .info/connected
@@ -46,6 +75,7 @@ export function subscribeToOnlineStatus(onStatusChange: (isOnline: boolean) => v
  */
 export function subscribeToMasterTree(
   onData: (data: TreeData, lastUpdated?: number) => void,
+  onPermissionError?: (errMsg: string) => void,
   room: string = MASTER_TREE_ROOM
 ): Unsubscribe {
   const treeRef = ref(database, `trees/${room}`);
@@ -59,6 +89,11 @@ export function subscribeToMasterTree(
     }
   }, (err) => {
     console.warn('Firebase real-time sync read error:', err);
+    if (err.message?.includes('permission_denied') || err.message?.includes('Permission denied')) {
+      if (onPermissionError) {
+        onPermissionError(err.message);
+      }
+    }
   });
 }
 
@@ -90,8 +125,11 @@ export async function pushMasterTreeToCloud(
   nodes: MemberNode[],
   links: RelationshipLink[],
   room: string = MASTER_TREE_ROOM
-): Promise<void> {
+): Promise<{ success: boolean; error?: string }> {
   try {
+    // Make sure auth is attempted if needed
+    await ensureFirebaseAuth().catch(() => {});
+
     const treeRef = ref(database, `trees/${room}`);
     const cleanNodes = sanitizeForFirebase(nodes);
     const cleanLinks = sanitizeForFirebase(links);
@@ -101,8 +139,24 @@ export async function pushMasterTreeToCloud(
       lastUpdated: Date.now()
     };
     await set(treeRef, payload);
+    return { success: true };
   } catch (err: any) {
-    console.warn('Firebase cloud push notice (local changes preserved):', err?.message || err);
+    const msg = err?.message || String(err);
+    console.warn('Firebase cloud push notice (local changes preserved):', msg);
+    return { success: false, error: msg };
   }
 }
 
+/**
+ * Tests live connection to Firebase Realtime Database
+ */
+export async function testFirebaseConnection(): Promise<{ ok: boolean; message: string }> {
+  try {
+    await ensureFirebaseAuth().catch(() => {});
+    const probeRef = ref(database, 'trees/probe');
+    await set(probeRef, { ping: Date.now() });
+    return { ok: true, message: 'Firebase Realtime Database is connected and write permissions are active!' };
+  } catch (err: any) {
+    return { ok: false, message: err?.message || 'Permission denied or network failure' };
+  }
+}

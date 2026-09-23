@@ -40,6 +40,8 @@ interface HeaderProps {
   isOnline?: boolean;
   isSyncing?: boolean;
   lastSyncTime?: string | null;
+  hasPermissionError?: boolean;
+  onOpenSyncModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -61,7 +63,9 @@ export const Header: React.FC<HeaderProps> = ({
   userName,
   isOnline = true,
   isSyncing = false,
-  lastSyncTime = null
+  lastSyncTime = null,
+  hasPermissionError = false,
+  onOpenSyncModal
 }) => {
   const [exportOpen, setExportOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -94,38 +98,46 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
 
             {/* Real-time Cloud Online Sync Status */}
-            <div 
-              className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-sm ${
-                isSyncing
+            <button 
+              type="button"
+              onClick={onOpenSyncModal}
+              className={`flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border shadow-sm transition cursor-pointer hover:brightness-110 active:scale-95 ${
+                hasPermissionError
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 hover:bg-rose-500/30'
+                  : isSyncing
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
                   : isOnline
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
                   : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
               title={
-                isSyncing 
-                  ? 'Synchronizing live to Firebase Realtime Database...' 
+                hasPermissionError
+                  ? 'Firebase Realtime Database Permission Denied: Click to view setup guide and fix rules.'
+                  : isSyncing 
+                  ? 'Synchronizing live to Firebase Realtime Database... Click for details.' 
                   : isOnline 
-                  ? `Cloud Online & Synchronized${lastSyncTime ? ` (${lastSyncTime})` : ''}` 
-                  : 'Offline / Connecting to Cloud...'
+                  ? `Cloud Online & Synchronized${lastSyncTime ? ` (${lastSyncTime})` : ''}. Click for details.` 
+                  : 'Offline / Connecting to Cloud... Click for details.'
               }
             >
               <span className={`w-2 h-2 rounded-full ${
-                isSyncing 
+                hasPermissionError
+                  ? 'bg-rose-500 animate-ping'
+                  : isSyncing 
                   ? 'bg-amber-400 animate-ping' 
                   : isOnline 
                   ? 'bg-emerald-400 shadow-sm shadow-emerald-400/80 animate-pulse' 
                   : 'bg-slate-500'
               }`} />
               <span>
-                {isSyncing ? 'Syncing...' : isOnline ? 'Online' : 'Offline'}
+                {hasPermissionError ? 'Sync Alert (Rules)' : isSyncing ? 'Syncing...' : isOnline ? 'Online' : 'Offline'}
               </span>
-              {isOnline && !isSyncing && lastSyncTime && (
+              {isOnline && !isSyncing && !hasPermissionError && lastSyncTime && (
                 <span className="text-[9px] text-emerald-400/70 hidden lg:inline">
                   • {lastSyncTime}
                 </span>
               )}
-            </div>
+            </button>
           </div>
           <p className="text-[11px] text-slate-400">Ancestral Lineage, Gotra & In-Law Heritage Archive</p>
         </div>
