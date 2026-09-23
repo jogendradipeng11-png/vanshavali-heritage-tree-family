@@ -108,21 +108,22 @@ export const MemberModal: React.FC<MemberModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !relationshipToRoot.trim()) return;
+    if (!name.trim()) return;
 
     const parsedAge = age ? parseInt(age, 10) : null;
+    const finalRel = relationshipToRoot.trim() || editingNode?.relationship_to_root || 'Family Member';
 
     const nodeData: Partial<MemberNode> = {
       name: name.trim(),
-      relationship_to_root: relationshipToRoot.trim(),
+      relationship_to_root: finalRel,
       gender,
       branch,
       status,
       marital_status: maritalStatus,
       gotra: gotra.trim(),
       bansa: bansa.trim(),
-      dob,
-      dod: status === 'deceased' ? dod : '',
+      dob: dob || '',
+      dod: status === 'deceased' ? (dod || '') : '',
       age: isNaN(parsedAge as number) ? null : parsedAge,
       profession: profession.trim(),
       phone: phone.trim(),

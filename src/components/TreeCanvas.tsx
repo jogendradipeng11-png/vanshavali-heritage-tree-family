@@ -14,10 +14,12 @@ interface TreeCanvasProps {
   activeSharedNodeId?: string | null;
   collapsedNodes: Set<string>;
   onSelectNode: (node: MemberNode) => void;
+  onEditNode: (node: MemberNode) => void;
   onShareNode: (node: MemberNode, e: React.MouseEvent) => void;
   onAddRelative: (node: MemberNode, e: React.MouseEvent) => void;
   onToggleCollapse: (nodeId: string, e: React.MouseEvent) => void;
   onUpdateNodePosition: (nodeId: string, x: number, y: number) => void;
+  onDragFinish?: () => void;
 }
 
 export const TreeCanvas: React.FC<TreeCanvasProps> = ({
@@ -29,10 +31,12 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
   activeSharedNodeId = null,
   collapsedNodes,
   onSelectNode,
+  onEditNode,
   onShareNode,
   onAddRelative,
   onToggleCollapse,
-  onUpdateNodePosition
+  onUpdateNodePosition,
+  onDragFinish
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 80, y: 100 });
@@ -110,8 +114,11 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
+    if (draggingNodeRef.current && onDragFinish) {
+      onDragFinish();
+    }
     draggingNodeRef.current = null;
-  }, []);
+  }, [onDragFinish]);
 
   // Handle touch events
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -141,8 +148,11 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
 
   const handleTouchEnd = useCallback(() => {
     setIsPanning(false);
+    if (draggingNodeRef.current && onDragFinish) {
+      onDragFinish();
+    }
     draggingNodeRef.current = null;
-  }, []);
+  }, [onDragFinish]);
 
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
@@ -322,6 +332,7 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
                   descendantCount={descendantCount}
                   isSharedOwner={node.id === activeSharedNodeId}
                   onSelect={onSelectNode}
+                  onEdit={onEditNode}
                   onShare={onShareNode}
                   onAddRelative={onAddRelative}
                   onToggleCollapse={onToggleCollapse}

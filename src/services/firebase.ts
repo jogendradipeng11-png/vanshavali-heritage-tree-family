@@ -63,6 +63,27 @@ export function subscribeToMasterTree(
 }
 
 /**
+ * Sanitizes object by removing undefined values and ensuring valid JSON types
+ */
+function sanitizeForFirebase(obj: any): any {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirebase);
+  }
+  if (typeof obj === 'object') {
+    const clean: Record<string, any> = {};
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (val !== undefined) {
+        clean[key] = sanitizeForFirebase(val);
+      }
+    }
+    return clean;
+  }
+  return obj;
+}
+
+/**
  * Directly updates tree data to Firebase so all devices worldwide get it immediately
  */
 export async function pushMasterTreeToCloud(
@@ -70,11 +91,18 @@ export async function pushMasterTreeToCloud(
   links: RelationshipLink[],
   room: string = MASTER_TREE_ROOM
 ): Promise<void> {
-  const treeRef = ref(database, `trees/${room}`);
-  const payload = {
-    nodes,
-    links,
-    lastUpdated: Date.now()
-  };
-  await set(treeRef, payload);
+  try {
+    const treeRef = ref(database, `trees/${room}`);
+    const cleanNodes = sanitizeForFirebase(nodes);
+    const cleanLinks = sanitizeForFirebase(links);
+    const payload = {
+      nodes: cleanNodes,
+      links: cleanLinks,
+      lastUpdated: Date.now()
+    };
+    await set(treeRef, payload);
+  } catch (err: any) {
+    console.warn('Firebase cloud push notice (local changes preserved):', err?.message || err);
+  }
 }
+

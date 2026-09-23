@@ -1,5 +1,5 @@
 import React from 'react';
-import { Share2, UserPlus, Heart, Briefcase, Calendar, MapPin } from 'lucide-react';
+import { Share2, UserPlus, Heart, Briefcase, Calendar, MapPin, Edit3 } from 'lucide-react';
 import { MemberNode } from '../types';
 
 interface MemberCardProps {
@@ -10,6 +10,7 @@ interface MemberCardProps {
   descendantCount: number;
   isSharedOwner?: boolean;
   onSelect: (node: MemberNode) => void;
+  onEdit: (node: MemberNode, e: React.MouseEvent) => void;
   onShare: (node: MemberNode, e: React.MouseEvent) => void;
   onAddRelative: (node: MemberNode, e: React.MouseEvent) => void;
   onToggleCollapse: (nodeId: string, e: React.MouseEvent) => void;
@@ -23,6 +24,7 @@ export const MemberCard: React.FC<MemberCardProps> = ({
   descendantCount,
   isSharedOwner = false,
   onSelect,
+  onEdit,
   onShare,
   onAddRelative,
   onToggleCollapse
@@ -63,9 +65,19 @@ export const MemberCard: React.FC<MemberCardProps> = ({
       <div>
         {/* If Shared Node Owner: Show prominent gold badge */}
         {isSharedOwner && (
-          <div className="mb-1.5 px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-[9px] uppercase tracking-wider flex items-center justify-between shadow-xs">
+          <div 
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(node, e);
+            }}
+            className="mb-1.5 px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-[9px] uppercase tracking-wider flex items-center justify-between shadow-xs cursor-pointer border border-amber-600/30"
+            title="Click to edit your node"
+          >
             <span>👑 Your Active Node</span>
-            <span>Edit & Add Active</span>
+            <span className="flex items-center gap-0.5 underline">
+              <Edit3 className="w-2.5 h-2.5" />
+              Edit
+            </span>
           </div>
         )}
 
@@ -154,23 +166,37 @@ export const MemberCard: React.FC<MemberCardProps> = ({
       </div>
 
       {/* Action Footer */}
-      <div className="pt-0.5 flex items-center justify-between gap-1.5">
+      <div className="pt-0.5 flex items-center justify-between gap-1">
         <button
           type="button"
-          onClick={(e) => onShare(node, e)}
-          className="flex-1 py-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-[10px] transition flex items-center justify-center gap-1 shadow-xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(node, e);
+          }}
+          title="Edit relative details"
+          className="flex-1 py-1 px-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-lg text-[10px] transition flex items-center justify-center gap-1 shadow-xs active:scale-95"
         >
-          <Share2 className="w-3 h-3" />
-          <span>Share</span>
+          <Edit3 className="w-3 h-3 text-slate-950" />
+          <span>Edit</span>
         </button>
 
         <button
           type="button"
           onClick={(e) => onAddRelative(node, e)}
-          className="flex-1 py-1 px-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-lg text-[10px] transition flex items-center justify-center gap-1 shadow-xs"
+          title="Add parent, spouse, or child"
+          className="flex-1 py-1 px-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-lg text-[10px] transition flex items-center justify-center gap-1 shadow-xs active:scale-95"
         >
           <UserPlus className="w-3 h-3" />
           <span>+ Relative</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={(e) => onShare(node, e)}
+          title="Share lineage record"
+          className="py-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-[10px] transition flex items-center justify-center gap-1 shadow-xs active:scale-95"
+        >
+          <Share2 className="w-3 h-3" />
         </button>
       </div>
     </div>

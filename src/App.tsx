@@ -180,30 +180,18 @@ export default function App() {
     setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, x, y } : n));
   }, []);
 
-  // Save dragged positions to storage and Firebase on mouse/touch finish
-  useEffect(() => {
-    const handleMouseUp = () => {
-      if (nodes.length > 0) {
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes, links }));
-        } catch {
-          // ignore
-        }
-        // Sync position updates to cloud quietly
-        pushMasterTreeToCloud(nodes, links)
-          .then(() => {
-            setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-          })
-          .catch(() => {});
+  // Save dragged positions to storage and cloud only when dragging finishes on the canvas
+  const handleDragFinish = useCallback(() => {
+    setNodes(currentNodes => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: currentNodes, links }));
+      } catch {
+        // ignore
       }
-    };
-    window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('touchend', handleMouseUp);
-    return () => {
-      window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('touchend', handleMouseUp);
-    };
-  }, [nodes, links]);
+      pushMasterTreeToCloud(currentNodes, links).catch(() => {});
+      return currentNodes;
+    });
+  }, [links]);
 
   // Subtree collapsing
   const handleToggleCollapse = useCallback((nodeId: string, e: React.MouseEvent) => {
@@ -248,7 +236,6 @@ export default function App() {
 
   const handleOpenEditModal = useCallback((node: MemberNode) => {
     setEditingNode(node);
-    setSelectedDetailsNode(null);
     setIsMemberModalOpen(true);
   }, []);
 
@@ -258,10 +245,24 @@ export default function App() {
     linkConfig?: { targetId: string; type: RelationshipType }
   ) => {
     if (editingNode) {
-      // Edit existing
-      const updatedNodes = nodes.map(n => n.id === editingNode.id ? { ...n, ...nodeData } as MemberNode : n);
+      // Edit existing relative
+      const updatedNodes = nodes.map(n => {
+        if (n.id === editingNode.id) {
+          return {
+            ...n,
+            ...nodeData,
+            id: n.id,
+            x: n.x,
+            y: n.y
+          } as MemberNode;
+        }
+        return n;
+      });
+
       saveState(updatedNodes, links);
-      showToast(`Updated profile for ${nodeData.name}.`, 'success');
+      showToast(`Updated profile for ${nodeData.name || editingNode.name}.`, 'success');
+      // Update selected details dossier if open
+      setSelectedDetailsNode(prev => (prev?.id === editingNode.id ? { ...prev, ...nodeData } as MemberNode : prev));
       setIsMemberModalOpen(false);
       setEditingNode(null);
     } else {
@@ -502,10 +503,12 @@ export default function App() {
               activeSharedNodeId={activeSharedNodeId}
               collapsedNodes={collapsedNodes}
               onSelectNode={setSelectedDetailsNode}
+              onEditNode={handleOpenEditModal}
               onShareNode={handleShareNode}
               onAddRelative={handleOpenAddModalForNode}
               onToggleCollapse={handleToggleCollapse}
               onUpdateNodePosition={handleUpdateNodePosition}
+              onDragFinish={handleDragFinish}
             />
           </div>
         )}
