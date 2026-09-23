@@ -66,20 +66,21 @@ export const MemberModal: React.FC<MemberModalProps> = ({
       setAddress(editingNode.address || '');
       setNotes(editingNode.notes || '');
     } else {
+      const targetNode = targetLinkNodeId ? nodes.find(n => n.id === targetLinkNodeId) : (nodes[0] || null);
       setName('');
       setRelationshipToRoot('');
       setGender('male');
-      setBranch(activeBranch === 'maternal' ? 'maternal' : 'paternal');
+      setBranch(targetNode ? targetNode.branch : (activeBranch === 'maternal' ? 'maternal' : 'paternal'));
       setStatus('alive');
       setMaritalStatus('married');
-      setGotra('');
-      setBansa('');
+      setGotra(targetNode?.gotra || '');
+      setBansa(targetNode?.bansa || '');
       setDob('');
       setDod('');
       setAge('');
       setProfession('');
       setPhone('');
-      setAddress('');
+      setAddress(targetNode?.address || '');
       setNotes('');
       setLinkTargetId(targetLinkNodeId || (nodes[0]?.id || ''));
       setLinkRelationType('child');

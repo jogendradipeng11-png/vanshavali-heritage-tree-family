@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Minus, RotateCcw, Crosshair } from 'lucide-react';
 import { MemberNode, RelationshipLink, Branch } from '../types';
 import { MemberCard } from './MemberCard';
@@ -77,19 +77,91 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
     );
   }, [searchQuery]);
 
-  // Check spotlight dimming
+  // Compute complete active family cluster of the spotlight/shared node
+  const activeClusterIds = useMemo(() => {
+    if (!spotlightNodeId) return new Set<string>();
+    const cluster = new Set<string>();
+    cluster.add(spotlightNodeId);
+
+    // 1. Spouses of spotlight
+    links.forEach(l => {
+      if (l.type === 'spouse') {
+        if (l.source === spotlightNodeId) cluster.add(l.target);
+        if (l.target === spotlightNodeId) cluster.add(l.source);
+      }
+    });
+
+    // 2. Parents of spotlight
+    links.forEach(l => {
+      if (l.type === 'parent' && l.target === spotlightNodeId) {
+        cluster.add(l.source);
+        links.forEach(sl => {
+          if (sl.type === 'spouse' && (sl.source === l.source || sl.target === l.source)) {
+            cluster.add(sl.source === l.source ? sl.target : sl.source);
+          }
+        });
+      }
+    });
+
+    // 3. Siblings of spotlight
+    links.forEach(l => {
+      if (l.type === 'sibling') {
+        if (l.source === spotlightNodeId) cluster.add(l.target);
+        if (l.target === spotlightNodeId) cluster.add(l.source);
+      }
+    });
+
+    // 4. All descendants (children, grandchildren, etc.) and their spouses
+    const queue = Array.from(cluster);
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      links.forEach(l => {
+        if (l.type === 'parent' && l.source === current) {
+          if (!cluster.has(l.target)) {
+            cluster.add(l.target);
+            queue.push(l.target);
+          }
+        }
+      });
+      links.forEach(l => {
+        if (l.type === 'spouse') {
+          if (l.source === current && !cluster.has(l.target)) {
+            cluster.add(l.target);
+            queue.push(l.target);
+          } else if (l.target === current && !cluster.has(l.source)) {
+            cluster.add(l.source);
+            queue.push(l.source);
+          }
+        }
+      });
+    }
+
+    return cluster;
+  }, [spotlightNodeId, links]);
+
+  // Check spotlight dimming: members outside the active cluster are faded
   const isDimmed = useCallback((node: MemberNode): boolean => {
     if (!matchesSearch(node)) return true;
     if (!spotlightNodeId) return false;
-    if (node.id === spotlightNodeId) return false;
+    return !activeClusterIds.has(node.id);
+  }, [spotlightNodeId, activeClusterIds, matchesSearch]);
 
-    // Is directly connected to spotlight node
-    const isDirectNeighbor = links.some(
-      l => (l.source === spotlightNodeId && l.target === node.id) ||
-           (l.target === spotlightNodeId && l.source === node.id)
-    );
-    return !isDirectNeighbor;
-  }, [spotlightNodeId, links, matchesSearch]);
+  // Auto-center canvas on spotlight node when it changes
+  useEffect(() => {
+    if (spotlightNodeId && containerRef.current) {
+      const target = nodes.find(n => n.id === spotlightNodeId);
+      if (target) {
+        const containerW = containerRef.current.clientWidth;
+        const containerH = containerRef.current.clientHeight;
+        const targetX = target.x + CARD_WIDTH / 2;
+        const targetY = target.y + CARD_HEIGHT / 2;
+        setPan({
+          x: containerW / 2 - targetX * zoom,
+          y: containerH / 2 - targetY * zoom
+        });
+      }
+    }
+  }, [spotlightNodeId]);
 
   // Handle canvas pan with mouse
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -241,10 +313,11 @@ export const TreeCanvas: React.FC<TreeCanvasProps> = ({
             const targetNode = visibleNodeMap.get(link.target);
             if (!sourceNode || !targetNode) return null;
 
-            const isConnectedToSpotlight = Boolean(
-              spotlightNodeId && (link.source === spotlightNodeId || link.target === spotlightNodeId)
+            const isConnectedToCluster = Boolean(
+              !spotlightNodeId || (activeClusterIds.has(link.source) && activeClusterIds.has(link.target))
             );
-            const linkOpacity = spotlightNodeId ? (isConnectedToSpotlight ? 1 : 0.15) : 0.9;
+            const linkOpacity = spotlightNodeId ? (isConnectedToCluster ? 1 : 0.12) : 0.9;
+
 
             if (link.type === 'spouse') {
               const x1 = sourceNode.x < targetNode.x ? sourceNode.x + CARD_WIDTH : sourceNode.x;

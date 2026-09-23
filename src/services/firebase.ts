@@ -119,33 +119,59 @@ function sanitizeForFirebase(obj: any): any {
 }
 
 /**
- * Directly updates tree data to Firebase so all devices worldwide get it immediately
+ * Directly updates tree data to Firebase and local server API so all devices worldwide get it immediately
  */
 export async function pushMasterTreeToCloud(
   nodes: MemberNode[],
   links: RelationshipLink[],
   room: string = MASTER_TREE_ROOM
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Make sure auth is attempted if needed
-    await ensureFirebaseAuth().catch(() => {});
+  const cleanNodes = sanitizeForFirebase(nodes);
+  const cleanLinks = sanitizeForFirebase(links);
+  const payload = {
+    nodes: cleanNodes,
+    links: cleanLinks,
+    lastUpdated: Date.now()
+  };
 
+  // 1. Sync to local server API endpoint so all clients stay synchronized even if rules are locked
+  try {
+    fetch('/api/sync-tree', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(() => {});
+  } catch {}
+
+  // 2. Sync to Firebase Realtime Database
+  try {
+    await ensureFirebaseAuth().catch(() => {});
     const treeRef = ref(database, `trees/${room}`);
-    const cleanNodes = sanitizeForFirebase(nodes);
-    const cleanLinks = sanitizeForFirebase(links);
-    const payload = {
-      nodes: cleanNodes,
-      links: cleanLinks,
-      lastUpdated: Date.now()
-    };
     await set(treeRef, payload);
     return { success: true };
   } catch (err: any) {
     const msg = err?.message || String(err);
-    console.warn('Firebase cloud push notice (local changes preserved):', msg);
+    console.warn('Firebase cloud push notice (local and server changes preserved):', msg);
     return { success: false, error: msg };
   }
 }
+
+/**
+ * Fetches current tree from local server sync endpoint
+ */
+export async function fetchServerMasterTree(): Promise<{ nodes: MemberNode[]; links: RelationshipLink[]; lastUpdated: number } | null> {
+  try {
+    const res = await fetch('/api/sync-tree');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.nodes) && data.nodes.length > 0) {
+        return data;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 
 /**
  * Tests live connection to Firebase Realtime Database

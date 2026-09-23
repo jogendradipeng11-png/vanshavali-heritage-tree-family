@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { Branch } from '../types';
 
-export type ViewMode = 'tree' | 'timeline' | 'split';
+export type ViewMode = 'tree' | 'sheet' | 'timeline' | 'split';
 
 interface HeaderProps {
   viewMode: ViewMode;
@@ -156,6 +156,19 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <span>🌳</span>
           <span className="hidden md:inline">Tree Graph</span>
+        </button>
+
+        <button
+          onClick={() => onViewModeChange('sheet')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+            viewMode === 'sheet'
+              ? 'bg-emerald-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+          title="Master Heritage Register Sheet"
+        >
+          <Table className="w-3.5 h-3.5" />
+          <span className="hidden md:inline">Sheet Register</span>
         </button>
 
         <button

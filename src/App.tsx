@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MemberNode, RelationshipLink, Branch, ActiveUser, RelationshipType } from './types';
 import { defaultTreeData, CARD_WIDTH, CARD_HEIGHT } from './initialData';
+import { Plus } from 'lucide-react';
 import { autoArrangeTree, getAllDescendantIds } from './utils/treeUtils';
 import { 
   exportFullRegisterPDF, 
@@ -11,11 +12,13 @@ import {
 import { 
   subscribeToOnlineStatus, 
   subscribeToMasterTree, 
-  pushMasterTreeToCloud 
+  pushMasterTreeToCloud,
+  fetchServerMasterTree 
 } from './services/firebase';
 
 import { Header, ViewMode } from './components/Header';
 import { TreeCanvas } from './components/TreeCanvas';
+import { RegisterSheetView } from './components/RegisterSheetView';
 import { TimelineView } from './components/TimelineView';
 import { SpotlightBanner } from './components/SpotlightBanner';
 import { MemberModal } from './components/MemberModal';
@@ -128,7 +131,42 @@ export default function App() {
       setIsOnline(online);
     });
 
-    // 2. Subscribe to Firebase real-time master tree updates
+    // 2. Fetch from server sync API endpoint immediately for fastest multi-device load
+    fetchServerMasterTree().then((serverData) => {
+      if (serverData && Array.isArray(serverData.nodes) && serverData.nodes.length > 0) {
+        setNodes(serverData.nodes);
+        setLinks(serverData.links || []);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(serverData));
+        } catch {}
+        if (serverData.lastUpdated) {
+          setLastSyncTime(new Date(serverData.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        }
+      }
+    }).catch(() => {});
+
+    // 3. Periodic server sync polling fallback (every 3 seconds) for live multi-user sync across all devices
+    const syncPollInterval = setInterval(() => {
+      fetchServerMasterTree().then((serverData) => {
+        if (serverData && Array.isArray(serverData.nodes) && serverData.nodes.length > 0) {
+          setNodes(prev => {
+            if (serverData.nodes.length !== prev.length || JSON.stringify(serverData.nodes) !== JSON.stringify(prev)) {
+              setLinks(serverData.links || []);
+              try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(serverData));
+              } catch {}
+              if (serverData.lastUpdated) {
+                setLastSyncTime(new Date(serverData.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+              }
+              return serverData.nodes;
+            }
+            return prev;
+          });
+        }
+      }).catch(() => {});
+    }, 3000);
+
+    // 4. Subscribe to Firebase real-time master tree updates
     const unsubTree = subscribeToMasterTree(
       (cloudData, lastUpdated) => {
         setHasPermissionError(false);
@@ -151,7 +189,7 @@ export default function App() {
         }
       },
       (errMsg) => {
-        console.warn('Firebase Realtime Database permission error:', errMsg);
+        console.warn('Firebase Realtime Database permission notice:', errMsg);
         setHasPermissionError(true);
       }
     );
@@ -159,6 +197,7 @@ export default function App() {
     return () => {
       unsubOnline();
       unsubTree();
+      clearInterval(syncPollInterval);
     };
   }, []);
 
@@ -242,8 +281,8 @@ export default function App() {
     setIsMemberModalOpen(true);
   }, [nodes, activeSharedNodeId]);
 
-  const handleOpenAddModalForNode = useCallback((node: MemberNode, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleOpenAddModalForNode = useCallback((node: MemberNode, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setEditingNode(null);
     setTargetLinkNodeId(node.id);
     setIsMemberModalOpen(true);
@@ -281,8 +320,10 @@ export default function App() {
       setIsMemberModalOpen(false);
       setEditingNode(null);
     } else {
-      // Add new
+      // Add new relative with intelligent non-overlapping layout
       const newNodeId = `node_${Date.now()}`;
+      const HORIZONTAL_GAP = CARD_WIDTH + 45;
+      const VERTICAL_GAP = 240;
       let posX = 320;
       let posY = 200;
 
@@ -290,27 +331,46 @@ export default function App() {
         const target = nodes.find(n => n.id === linkConfig.targetId);
         if (target) {
           if (linkConfig.type === 'parent') {
-            posX = target.x;
-            posY = Math.max(40, target.y - 240);
+            const existingParents = links.filter(l => l.target === target.id && l.type === 'parent');
+            posX = target.x + (existingParents.length * HORIZONTAL_GAP);
+            posY = Math.max(40, target.y - VERTICAL_GAP);
           } else if (linkConfig.type === 'child') {
-            posX = target.x;
-            posY = target.y + 240;
+            const existingChildren = links.filter(l => l.source === target.id && l.type === 'parent');
+            posX = target.x + (existingChildren.length * HORIZONTAL_GAP);
+            posY = target.y + VERTICAL_GAP;
           } else if (linkConfig.type === 'spouse') {
             const spouseLinks = links.filter(l => (l.source === target.id || l.target === target.id) && l.type === 'spouse');
-            const offset = (spouseLinks.length % 2 === 0 ? 1 : -1) * (CARD_WIDTH + 50);
-            posX = target.x + offset;
+            posX = target.x + ((spouseLinks.length + 1) * HORIZONTAL_GAP);
             posY = target.y;
           } else if (linkConfig.type === 'sibling') {
-            posX = target.x + CARD_WIDTH + 60;
+            const siblingLinks = links.filter(l => (l.source === target.id || l.target === target.id) && l.type === 'sibling');
+            posX = target.x + ((siblingLinks.length + 1) * HORIZONTAL_GAP);
             posY = target.y;
           }
+        }
+      } else {
+        if (nodes.length > 0) {
+          const maxX = Math.max(...nodes.map(n => n.x));
+          posX = maxX + HORIZONTAL_GAP;
+          posY = 200;
+        }
+      }
+
+      // Check collision against all existing nodes and nudge horizontally
+      let collision = true;
+      let attempts = 0;
+      while (collision && attempts < 25) {
+        collision = nodes.some(n => Math.abs(n.x - posX) < CARD_WIDTH - 20 && Math.abs(n.y - posY) < CARD_HEIGHT - 20);
+        if (collision) {
+          posX += HORIZONTAL_GAP;
+          attempts++;
         }
       }
 
       const newNode: MemberNode = {
         id: newNodeId,
         name: nodeData.name || '',
-        relationship_to_root: nodeData.relationship_to_root || '',
+        relationship_to_root: nodeData.relationship_to_root || 'Family Member',
         gender: nodeData.gender || 'male',
         branch: nodeData.branch || 'paternal',
         status: nodeData.status || 'alive',
@@ -339,13 +399,35 @@ export default function App() {
         } else if (linkConfig.type === 'sibling') {
           newLinksList.push({ id: `l_${Date.now()}`, source: linkConfig.targetId, target: newNodeId, type: 'sibling' });
         }
+
+        // Unfold target and all ancestors so the newly added relative is visible
+        setCollapsedNodes(prev => {
+          const next = new Set(prev);
+          next.delete(linkConfig.targetId);
+          prev.forEach(cId => {
+            if (getAllDescendantIds(cId, links).has(linkConfig.targetId)) {
+              next.delete(cId);
+            }
+          });
+          return next;
+        });
+      }
+
+      // Ensure active branch doesn't hide the newly added member
+      if (activeBranch !== 'all' && activeBranch !== newNode.branch) {
+        setActiveBranch('all');
+      }
+
+      // If user is in shared owner mode, focus spotlight on the active shared node cluster
+      if (!activeSharedNodeId) {
+        setSpotlightNodeId(newNodeId);
       }
 
       saveState([...nodes, newNode], newLinksList);
-      showToast(`Added ${newNode.name} to the heritage register.`, 'success');
+      showToast(`Added ${newNode.name} to the heritage register and sheet.`, 'success');
       setIsMemberModalOpen(false);
     }
-  }, [editingNode, nodes, links, saveState, showToast]);
+  }, [editingNode, nodes, links, saveState, showToast, activeBranch, activeSharedNodeId]);
 
   // Delete Node
   const handleDeleteMember = useCallback((nodeId: string) => {
@@ -507,8 +589,27 @@ export default function App() {
         isSharedOwnerMode={Boolean(activeSharedNodeId && spotlightNodeId === activeSharedNodeId)}
       />
 
-      {/* Main View Area: Tree Canvas and/or Chronological Timeline View */}
+      {/* Main View Area: Tree Canvas, Sheet Register, and/or Chronological Timeline View */}
       <main className="flex-1 relative overflow-hidden flex flex-row w-full h-full">
+        {viewMode === 'sheet' && (
+          <div className="flex-1 relative h-full w-full overflow-hidden bg-slate-950">
+            <RegisterSheetView
+              nodes={nodes}
+              links={links}
+              activeBranch={activeBranch}
+              searchQuery={searchQuery}
+              spotlightNodeId={spotlightNodeId}
+              onSelectNode={setSelectedDetailsNode}
+              onEditNode={handleOpenEditModal}
+              onAddRelative={handleOpenAddModalForNode}
+              onShareNode={handleShareNode}
+              onDeleteNode={handleDeleteMember}
+              onExportExcel={() => { exportToExcel(nodes, links); showToast('Excel spreadsheet downloaded.', 'success'); }}
+              onExportPDF={() => { exportFullRegisterPDF(nodes, links); showToast('PDF register downloaded.', 'success'); }}
+            />
+          </div>
+        )}
+
         {(viewMode === 'tree' || viewMode === 'split') && (
           <div className="flex-1 relative h-full w-full overflow-hidden">
             <TreeCanvas
@@ -527,6 +628,34 @@ export default function App() {
               onUpdateNodePosition={handleUpdateNodePosition}
               onDragFinish={handleDragFinish}
             />
+
+            {/* Quick Contributor Floating Action for Shared Node Collaborator */}
+            {activeSharedNodeId && (
+              <div className="hidden sm:flex absolute bottom-6 left-6 z-30 bg-slate-900/95 backdrop-blur-md border border-amber-500/50 rounded-2xl p-4 shadow-2xl max-w-xs flex-col gap-2 pointer-events-auto">
+                <div className="flex items-center gap-2 text-amber-400 font-black text-xs">
+                  <span className="text-base">👑</span>
+                  <span>Branch Contributor Mode</span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Your branch is spotlighted and relatives you add automatically sync to everyone&apos;s master register sheet.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sharedNode = nodes.find(n => n.id === activeSharedNodeId);
+                    if (sharedNode) {
+                      handleOpenAddModalForNode(sharedNode);
+                    } else if (nodes.length > 0) {
+                      handleOpenAddModalForNode(nodes[0]);
+                    }
+                  }}
+                  className="w-full py-2 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 text-slate-950" />
+                  <span>+ Add Relative to My Branch</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
